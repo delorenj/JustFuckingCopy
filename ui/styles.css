@@ -1,0 +1,326 @@
+:root {
+  color-scheme: light;
+  --bg: #f4efe6;
+  --bg-radial: rgba(249, 214, 160, 0.6);
+  --panel: rgba(255, 252, 247, 0.88);
+  --panel-border: rgba(37, 34, 29, 0.12);
+  --shadow: 0 20px 60px rgba(73, 49, 18, 0.12);
+  --ink: #1f1c17;
+  --muted: #655f56;
+  --accent: #d9652b;
+  --accent-strong: #9c3200;
+  --accent-soft: rgba(217, 101, 43, 0.16);
+  --success: #2f7a46;
+  --canvas-grid: rgba(0, 0, 0, 0.05);
+  --selection-fill: rgba(217, 101, 43, 0.18);
+  --selection-stroke: #d9652b;
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --font-display: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-body: "Iowan Old Style", Georgia, serif;
+  --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, var(--bg-radial), transparent 38%),
+    linear-gradient(140deg, #f6f0e7 0%, #efe5d5 50%, #f9f4ea 100%);
+  font-family: var(--font-body);
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(1500px, calc(100vw - 40px));
+  margin: 20px auto 32px;
+  display: grid;
+  gap: 20px;
+}
+
+.hero-card,
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(20px);
+}
+
+.hero-card {
+  padding: 28px;
+}
+
+.eyebrow,
+.panel-kicker {
+  margin: 0 0 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-family: var(--font-display);
+  font-size: 0.76rem;
+  color: var(--accent-strong);
+}
+
+h1,
+h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+h1 {
+  font-size: clamp(2.3rem, 5vw, 4.6rem);
+  line-height: 0.95;
+  max-width: 12ch;
+}
+
+h2 {
+  font-size: clamp(1.3rem, 2vw, 1.8rem);
+}
+
+.lede,
+.panel-copy {
+  max-width: 72ch;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.action-row,
+.status-row,
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.action-row {
+  margin-top: 24px;
+}
+
+.status-row {
+  margin-top: 20px;
+}
+
+.status-pill {
+  min-width: 180px;
+  padding: 14px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 28, 23, 0.08);
+  background: rgba(255, 255, 255, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-label {
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+}
+
+.primary-button,
+.secondary-button,
+.ghost-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 18px;
+  transition: transform 140ms ease, background 140ms ease, opacity 140ms ease;
+  cursor: pointer;
+  font-family: var(--font-display);
+}
+
+.primary-button {
+  background: linear-gradient(135deg, var(--accent) 0%, #ff8d57 100%);
+  color: white;
+}
+
+.secondary-button {
+  background: rgba(43, 65, 217, 0.09);
+  color: #23308f;
+}
+
+.ghost-button {
+  background: transparent;
+  border: 1px solid rgba(31, 28, 23, 0.12);
+  color: var(--ink);
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.ghost-button:hover {
+  transform: translateY(-1px);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.ghost-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.small {
+  padding: 10px 14px;
+  font-size: 0.92rem;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 20px;
+}
+
+.panel {
+  padding: 22px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.selection-stage {
+  position: relative;
+  min-height: 480px;
+  margin-top: 20px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid rgba(31, 28, 23, 0.1);
+  background:
+    linear-gradient(var(--canvas-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--canvas-grid) 1px, transparent 1px),
+    linear-gradient(135deg, #fffdfa 0%, #ece2d2 100%);
+  background-size: 24px 24px, 24px 24px, auto;
+}
+
+.selection-stage.empty canvas {
+  display: none;
+}
+
+.selection-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-family: var(--font-display);
+}
+
+#snapshot-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+}
+
+.merged-output {
+  margin-top: 18px;
+  width: 100%;
+  min-height: 560px;
+  resize: vertical;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(31, 28, 23, 0.1);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.segment-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.segment-card {
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(31, 28, 23, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.segment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.segment-badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.segment-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.empty-state {
+  margin: 0;
+  color: var(--muted);
+}
+
+.flash-banner {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  max-width: min(420px, calc(100vw - 48px));
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: rgba(31, 28, 23, 0.9);
+  color: white;
+  font-family: var(--font-display);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+}
+
+@media (max-width: 1100px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .merged-output {
+    min-height: 320px;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    width: min(100vw - 20px, 1500px);
+    margin: 10px auto 20px;
+  }
+
+  .hero-card,
+  .panel {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .selection-stage {
+    min-height: 320px;
+  }
+}
+
