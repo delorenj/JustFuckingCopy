@@ -28,10 +28,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Images larger than 2048px are resized before the request is sent
   4. When Ollama is unreachable, times out, or returns a model-not-found error, the function returns a descriptive error string distinguishing the failure type
   5. `cargo test` passes for unit tests covering base64 encoding, request construction, and error classification
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 01-01: Add `reqwest 0.12` and `serde_json 1` dependencies; create `ollama.rs` with `recognize_text` implementing all request guards, timeout, and error classification
+- [ ] 01-01-PLAN.md — Add `reqwest 0.12` and `serde_json 1` dependencies; create `ollama.rs` with `recognize_text` implementing all request guards, timeout, and error classification
 
 ### Phase 2: Platform Cleanup
 **Goal**: All legacy OCR code is deleted; `platform.rs` contains only screenshot capture and `crop_png`
