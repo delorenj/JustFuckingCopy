@@ -1,164 +1,213 @@
 # Project Research Summary
 
-**Project:** JustFuckingCopy — Ollama GLM-OCR Integration
-**Domain:** Local LLM-based OCR via Ollama HTTP API in a Rust/Tauri 2 desktop app
-**Researched:** 2026-03-20
-**Confidence:** MEDIUM-HIGH (stack and architecture HIGH, API contract MEDIUM)
+**Project:** JustFuckingCopy — v2.0 Ambient Tray
+**Domain:** Tauri 2 desktop app — system tray, directory watcher, global hotkey, batch OCR
+**Researched:** 2026-03-21
+**Confidence:** HIGH
 
 ## Executive Summary
 
-This milestone replaces three platform-specific OCR backends (Apple Vision Swift subprocess, Tesseract CLI, Windows stub) with a single async HTTP call to an Ollama instance running `glm-ocr` at `192.168.1.12:11434`. The change is tightly scoped: only `platform.rs` is modified in any substantive way, a new `ollama.rs` module is added, and `lib.rs` gains an `async` qualifier on `commit_selection`. The core algorithm (`merge.rs`, `state.rs`) is untouched — it consumes a `String` regardless of OCR source.
+JustFuckingCopy v2.0 transforms the existing modal window OCR tool into an ambient tray-only application. Instead of the user manually capturing a region, a directory watcher passively accumulates screenshots as they arrive, and a single global hotkey (`Ctrl+Shift+C`) triggers batch OCR across all pending files, merges the results via the existing fuzzy dedup algorithm, and writes the output to the clipboard. The entire v1.0 backend — `merge.rs`, `ollama.rs`, `platform.rs` — carries forward unchanged. The v2.0 work is purely additive: two new modules (`config.rs`, `watcher.rs`), targeted extensions to `state.rs` and `lib.rs`, four new Cargo dependencies, and a UI update.
 
-The recommended approach is to use `reqwest 0.12` with `rustls-tls` for the HTTP call, posting to `/api/generate` (not the OpenAI-compat endpoint), with `stream: false`, the task prefix `"Text Recognition:"`, raw base64 PNG in the `images` field, and `options.num_ctx: 10240` in every request. Two image pre-processing guards are required before sending to Ollama: strip the `data:image/png;base64,` URI prefix from any stored data URL, and clamp image dimensions to a maximum of 2048px on the longest side. Both guards prevent silent failures that return HTTP 200 with garbled or empty output.
+The recommended approach is a strict 5-phase build order driven by compile-time dependencies: Cargo/config baseline first, then tray lifecycle, then watcher, then hotkey + batch processing, then UI. This order is non-negotiable because every downstream component depends on the tray process staying alive (Pitfall 1), which must be solved before any other feature is wired. The batch OCR pipeline reuses `ollama.rs` and `merge.rs` unchanged — the only new logic is a sequential file loop with mtime-sorted ordering to preserve the merge algorithm's temporal assumptions.
 
-The key risks are well-documented and preventable. GLM-OCR has a confirmed context-window truncation bug at the default 4096-token limit and a confirmed image-size failure above 2048px — both require specific mitigations in the request construction code, not in Ollama server configuration. The async/sync boundary in Tauri's `commit_selection` command requires a clone-before-await pattern to avoid holding a `std::sync::MutexGuard` across an `.await` point, which is a compile error. Every other pitfall (timeout, error classification, endpoint choice) reduces to a handful of lines of code.
+The highest-risk area is system tray lifecycle on Linux: `libayatana-appindicator` is not universally installed, badge count overlays do not exist in AppIndicator, and the app will silently run invisible if the library is absent. The second major risk is the "app exits when status panel closes" trap, which requires both `WindowEvent::CloseRequested` + `prevent_close` AND `RunEvent::ExitRequested` + `prevent_exit` to be handled — one layer alone is not sufficient in Tauri 2. Both must be addressed in Phase 1 before any other work.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The entire change adds two Cargo dependencies: `reqwest = "0.12"` (async HTTP client, Tokio-native, with `json` and `rustls-tls` features) and `serde_json = "1"` (for `json!()` macro-based request construction). The `base64`, `image`, `serde`, `tauri`, and `tauri-plugin-clipboard-manager` crates remain unchanged. `reqwest 0.13` exists but introduces breaking changes (opt-in `query`/`form` features, `aws-lc` TLS default) that are not worth adopting now; 0.12.24 is the current stable line. `tokio` should be added as a direct dev-dependency with `features = ["rt"]` to enable `#[tokio::test]` in unit tests without conflicting with Tauri's owned runtime entry point.
+The v1.0 stack is fully validated and carries forward without changes (`tauri 2`, `reqwest 0.12`, `tauri-plugin-clipboard-manager 2`, `image 0.25`, `serde 1`, `serde_json 1`, `base64 0.22`). Four additions are needed for v2.0: the `tray-icon` feature flag on the existing `tauri` crate (no new crate), plus new dependencies.
 
-**Core technologies:**
-- `reqwest 0.12`: Async HTTP client for Ollama POST — Tokio-native, avoids runtime conflict, `rustls-tls` eliminates OpenSSL build complexity on Linux
-- `serde_json 1`: Request body construction via `json!()` macro — avoids manual struct definitions for a one-off API shape
-- `base64 0.22` (existing): Raw base64 encoding of PNG bytes — already present, no new dependency
-- `image 0.25` (existing): PNG dimension clamping pre-send — already present, handles the 2048px guard
+**New dependencies:**
+- `tauri = { version = "2", features = ["tray-icon"] }` — tray icon support built into tauri crate, not a separate plugin
+- `tauri-plugin-global-shortcut = "2"` (latest 2.3.1) — official first-party plugin; the only option that integrates cleanly with Tauri's event loop
+- `notify-debouncer-full = "0.7"` — collapses the 2-4 raw OS events per screenshot write into a single stable event; bare `notify` without debouncing will OCR the same file multiple times
+- `toml = "1"` — canonical TOML parser; combined with existing `serde`, parses config in ~5 lines
+- `dirs = "6"` — resolves `~/.config` correctly on Linux and `~/Library/Application Support` on macOS; hardcoding `~/.config` is wrong on macOS
+
+**Critical version constraint:** `tauri` and `tauri-plugin-global-shortcut` must both be in the `"2"` semver series. Do not add bare `notify` to Cargo.toml alongside `notify-debouncer-full` — let the debouncer pull it transitively to avoid version conflicts.
 
 ### Expected Features
 
-The feature scope is a direct backend swap with three mandatory correctness guards. Nothing in the UI changes. The merge algorithm contract (`String` in, `String` out) is unaffected.
+All P1 features must ship in v2.0. P2 features should be included if not blocking the milestone. P3 features are deferred.
 
-**Must have (table stakes):**
-- Async POST to `http://192.168.1.12:11434/api/generate` with `model: "glm-ocr"`, `stream: false`, `prompt: "Text Recognition:"`, raw base64 PNG in `images` array — core mechanic
-- `options.num_ctx: 10240` in every request — prevents silent context truncation (confirmed production bug)
-- Raw base64 (no `data:image/png;base64,` prefix) in `images` array — Ollama silently produces garbage with the URI prefix
-- Image dimension clamp to max 2048px before encoding — confirmed GLM-OCR failure above this limit
-- 45–60 second request timeout with 3-second connect timeout — prevents indefinite UI freeze on slow/cold-start inference
-- Classified error messages distinguishing: unreachable (connection refused), timeout, model not found (404), server error (500) — required by project spec
-- Remove all three old OCR backends (Swift, Tesseract, Windows stub) with no `#[cfg]` gates remaining
-- Preserve empty-text validation (`"OCR returned no text"` error path)
+**Must have (table stakes — P1):**
+- Tray-only launch with no main window — the entire ambient premise fails without this
+- Directory watcher (PNG/JPEG, 500ms debounce) — passive accumulation is the core workflow
+- Tray badge count via pre-rendered icon set (not `set_title` — broken on Linux) — ambient awareness
+- Global hotkey `Ctrl+Shift+C` (configurable) — the single intentional trigger
+- Batch OCR: sequential Ollama calls in mtime order with existing resize guard applied
+- Fuzzy merge across batch via existing `merge.rs` — already built, zero new code
+- Clipboard copy of merged result — workflow completion
+- Archive processed files to `{watch_dir}/.jfc-archive/YYYY-MM-DD/` — prevents re-processing
+- Status panel (left-click tray): pending files + last merged text + "Process now" + "Clear batch"
+- TOML config at platform-correct path with defaults for `watch_dir`, `hotkey`, `ollama_endpoint`
 
-**Should have (quality improvements):**
-- Log OCR round-trip timing to stderr — zero-cost debug aid, single `eprintln!` line
-- Response preamble stripping — GLM-OCR may emit conversational wrapper text; strip before passing to `push_segment()`
+**Should have (P2):**
+- Hotkey conflict graceful degradation — `is_registered()` check post-registration, tray tooltip fallback
+- Clear batch action (discard without OCR)
 
-**Defer (v2+):**
-- Configurable Ollama endpoint in UI — one known instance; hardcode the address
-- Structured error type enum surfaced to frontend — adds complexity for marginal UX gain at this scope
-- `reqwest::Client` singleton (via `AppState` or `OnceLock`) — per-request construction is acceptable for low-frequency single-user use; minor latency issue only
-- Markdown stripping from GLM-OCR output — post-integration validation item; address only if merge quality degrades on code/table screenshots
+**Defer to v2.1+ (P3):**
+- Config hot-reload — HIGH complexity (requires hotkey re-registration)
+- Desktop notification on batch completion
+- Settings GUI window — TOML is sufficient for power users
+- Windows support — explicit scope constraint in PROJECT.md
+- App bundling/distribution
+
+**Anti-features to reject:**
+- Per-file OCR progress bar (defeats ambient premise; use tray tooltip instead)
+- Live OCR as files arrive without hotkey (no user control over batch accumulation)
+- Marquee selection in status panel (regression to v1.0 model)
+- Retry loops on Ollama failure (delay feedback; fail fast instead)
 
 ### Architecture Approach
 
-The migration is cleanly separated into one new module and modifications to two existing files. `ollama.rs` (new) owns the entire HTTP boundary: base64 encoding, request construction, response parsing, text sanitization, and error classification. `platform.rs` retains only screenshot capture and `crop_png`; all OCR-related code including `recognize_text_from_png`, `recognize_text_from_file`, `sanitize_ocr_output`, and `VISION_OCR_SCRIPT` move out or are deleted. `lib.rs` gains `async` on `commit_selection` and applies the clone-before-await state lock pattern. `state.rs` and `merge.rs` are not touched.
+The v2.0 architecture is strictly additive to v1.0. Two new modules are created (`config.rs` for TOML loading, `watcher.rs` for directory watching), two existing modules are extended (`state.rs` gets batch fields, `lib.rs` gets tray setup + plugin wiring + 3 new commands), and all other modules remain untouched. The key architectural patterns are: (1) lock-clone-drop before any async work to prevent `MutexGuard` held across `.await`, (2) `AppHandle::clone()` for background thread access to app state, (3) single `app.manage(SharedState)` with access from both commands and background threads.
 
 **Major components:**
-1. `ollama.rs` (new) — async HTTP client layer; `pub async fn recognize_text(png_bytes: &[u8]) -> Result<String, String>`; no knowledge of AppState or merge logic
-2. `platform.rs` (trimmed) — screenshot capture and `crop_png` only; all `#[cfg(target_os)]` OCR dispatch deleted
-3. `lib.rs` (updated) — `commit_selection` becomes `async fn`; uses clone-before-await pattern for `SharedState`; calls `ollama::recognize_text(&crop).await?`
-4. `state.rs` / `merge.rs` (unchanged) — pure text logic consuming `String`; OCR source is irrelevant
+1. `config.rs` — Load/parse TOML config once at startup; provide typed defaults; stored via `app.manage()`
+2. `watcher.rs` — `notify-debouncer-full` on background thread; pushes `PathBuf` to `BatchState`; updates tray badge; emits `"batch-updated"` to frontend; never does OCR
+3. `state.rs (extended)` — Adds `batch: Vec<PathBuf>` and `batch_merged_text: String` to existing `AppState`; new `BatchPayload` for frontend serialization
+4. `lib.rs (extended)` — `TrayIconBuilder` in `setup()`; global shortcut registration; `process_batch_inner()` async fn; 3 new commands (`get_batch_state`, `process_batch`, `clear_batch`)
+5. `ui/app.js (extended)` — Listens for `"batch-updated"` and `"batch-processed"` events; renders file list and merged preview; "Process Now" and "Clear" buttons
+
+**Data flow summary:**
+```
+File arrives in watch_dir
+  -> notify-debouncer-full (500ms) -> watcher.rs
+  -> state.batch.push(path) + tray badge update + emit("batch-updated")
+
+Hotkey pressed (Ctrl+Shift+C)
+  -> tauri-plugin-global-shortcut handler
+  -> spawn async: lock->clone batch->drop lock
+  -> for each path (mtime sorted): read PNG -> ollama::recognize_text -> merge::append_text
+  -> lock->store result->clear batch->drop lock
+  -> clipboard write + archive files + tray badge reset + emit("batch-processed")
+```
 
 ### Critical Pitfalls
 
-1. **Data URL prefix in base64 payload** — Ollama returns HTTP 200 but produces garbled/empty OCR; strip `data:image/png;base64,` prefix before encoding or store raw `png_bytes` separately; unit-test that `images[0]` in the serialized request body does not start with `data:`
-2. **GLM-OCR default context window (4096 tokens) silently truncates output** — pass `"options": {"num_ctx": 10240}` in every request body; this overrides the server default without requiring a Modelfile change on the Ollama host
-3. **`std::sync::MutexGuard` held across `.await` is a compile error** — lock state, clone needed data, drop the guard, call `ollama::recognize_text().await`, re-acquire lock to write result; do not switch `SharedState` to `tokio::sync::Mutex` (unnecessary cascade of changes)
-4. **No timeout causes indefinite UI freeze** — set `connect_timeout(3s)` + `timeout(60s)` on `reqwest::ClientBuilder`; GLM-OCR cold-start can take 30+ seconds; without timeout the frontend freezes with no recovery path
-5. **Wrong endpoint (`/v1/chat/completions`) silently drops image data** — use `/api/generate` exclusively; the OpenAI-compat layer has known gaps for vision/image requests with GLM-OCR; returns HTTP 200 with no OCR content
-6. **Image dimensions above 2048px cause failure** — add `clamp_for_ocr(bytes, max_dim: 2048)` helper in `platform.rs` alongside `crop_png`; apply before base64-encoding the crop; use the existing `image` crate
+1. **App exits when status panel closes** — Handle BOTH `WindowEvent::CloseRequested` (`window.hide()` + `api.prevent_close()`) AND `RunEvent::ExitRequested` (`api.prevent_exit()`). One layer alone is insufficient in Tauri 2. Block-everything risk for Phase 1.
+
+2. **Linux tray silently invisible** — `libayatana-appindicator` is not installed by default on Arch, minimal Debian, and others. Detect tray initialization failure at startup and emit a clear error rather than running silently with no tray icon and no way to quit.
+
+3. **Badge count broken on Linux via `set_title`** — AppIndicator has no badge overlay concept. Use pre-rendered numbered PNG icons (`tray-0.png` through `tray-9plus.png`) and `set_icon()` instead of `set_title()`. This is the only cross-platform approach.
+
+4. **File watcher fires before PNG is fully written** — Use `notify-debouncer-full` with 500ms window AND a 3-attempt retry-open loop after receiving the debounced event. Silent failure mode: empty or corrupt OCR results.
+
+5. **OCR results arrive in network-latency order, not file-creation order** — The merge algorithm is order-sensitive. Sort the batch by file mtime before dispatch, tag concurrent futures with source index, sort results before feeding into merge pipeline. Silent failure mode: scrambled clipboard output that looks plausible.
+
+6. **MutexGuard held across `.await`** — `process_batch_inner()` must use the established v1 clone-before-await pattern. Lock, clone `Vec<PathBuf>`, drop guard, do all async OCR work, re-acquire lock to write results. Compile error with `std::sync::Mutex`; deadlock with `tokio::sync::Mutex`.
+
+7. **Global hotkey silently fails to register** — `register()` returning `Ok(())` does not guarantee the hotkey is active. Always verify with `is_registered()` immediately after. Surface failure via tray tooltip. Register exclusively inside the `setup()` closure.
+
+8. **macOS dock icon for tray-only app** — Set `app.set_activation_policy(tauri::ActivationPolicy::Accessory)` in `setup()` on macOS. One line; easy to miss; produces obvious wrong UX.
+
+9. **Config parse silent failure with wrong defaults** — `unwrap_or_default()` on TOML parse result silently uses developer-specific `watch_dir` path on every other machine. Use field-level `#[serde(default = "fn")]` attributes, log parse errors explicitly, validate that `watch_dir` exists after config load, and create it if absent.
+
+10. **Duplicate tray icons** — Never initialize tray in both `tauri.conf.json` AND Rust `setup()`. Use Rust `setup()` exclusively for dynamic behavior.
 
 ## Implications for Roadmap
 
-This milestone is a single cohesive implementation unit. The dependency chain is linear with no parallelizable phases. The suggested build order from architecture research maps directly to phases.
+Based on the dependency graph from ARCHITECTURE.md and the pitfall-to-phase mapping from PITFALLS.md, the build order is clear and non-negotiable. Each phase is independently verifiable before starting the next.
 
-### Phase 1: Infrastructure Setup
-**Rationale:** Dependencies must compile before any logic can be written; verifying `cargo build` passes before touching OCR code creates a clean baseline.
-**Delivers:** Updated `Cargo.toml` with `reqwest 0.12` and `serde_json 1`; confirmed clean build
-**Addresses:** Prerequisite for all subsequent implementation
-**Avoids:** Discovering dependency conflicts mid-implementation
+### Phase 1: System Tray + App Lifecycle Foundation
+**Rationale:** Every other feature depends on the tray process staying alive. The most critical pitfalls (app exits on window close, Linux tray invisibility, macOS dock icon) must be solved before any other feature is wired. This phase has no external dependencies.
+**Delivers:** App launches to tray with no main window, left-click toggles status panel, close button hides (not quits) the panel, `RunEvent::ExitRequested` handled to keep process alive, macOS `ActivationPolicy::Accessory` set, Linux tray dependency detected at startup with clear error.
+**Addresses:** Tray-only launch, status panel window lifecycle.
+**Avoids:** Pitfalls 1 (app exits on close), 2 (Linux tray silent), 8 (macOS dock icon), 10 (duplicate tray init).
+**Cargo changes:** Add `tray-icon` feature to `tauri`; update `tauri.conf.json` (`visible: false`, `skipTaskbar: true`); create `icons/tray.png`.
 
-### Phase 2: New Ollama HTTP Module
-**Rationale:** `ollama.rs` has no dependencies on the rest of the codebase changes; it can be written and unit-tested in isolation against a real Ollama instance before any callers exist.
-**Delivers:** `src-tauri/src/ollama.rs` with `pub async fn recognize_text(png_bytes: &[u8]) -> Result<String, String>`; includes base64 encoding, request construction, response parsing, error classification, connect/request timeouts
-**Addresses:** Table stakes features (correct endpoint, num_ctx override, raw base64, classified errors, timeout)
-**Avoids:** Pitfalls 1, 2, 4, 5, 6 (all live in this module's implementation)
+### Phase 2: TOML Config
+**Rationale:** Config must load before watcher and hotkey because both read their parameters (`watch_dir`, `hotkey`, `ollama_endpoint`) from config. Tray is already alive from Phase 1 so `app.manage()` is available. This phase has no async complexity and is independently unit-testable.
+**Delivers:** `config.rs` with `AppConfig` struct, platform-correct path via `dirs`, field-level serde defaults, parse error logging with tray notification, `watch_dir` existence check and creation, default config file written on first run.
+**Addresses:** TOML config feature.
+**Avoids:** Pitfall 9 (config silent failure with developer-specific defaults).
+**New crates:** `toml = "1"`, `dirs = "6"`.
 
-### Phase 3: Platform Layer Cleanup
-**Rationale:** Remove the old OCR backends after the replacement exists; this keeps the diff atomic and ensures no dangling imports in `lib.rs`.
-**Delivers:** `platform.rs` stripped of all OCR code and `#[cfg(target_os)]` dispatch; `vision_ocr.swift` deleted; `sanitize_ocr_output` moved to `ollama.rs`
-**Addresses:** Table stakes — remove Apple Vision, Tesseract, Windows stub
-**Avoids:** Dead code confusion and false impression of fallback behavior
+### Phase 3: Directory Watcher + State Extension + Badge
+**Rationale:** Watcher reads `watch_dir` from config (Phase 2 dependency). State extension must precede watcher because watcher pushes to `BatchState`. Badge count is part of this phase because it is directly triggered by watcher events. Pre-rendered icon set for badge must be created here.
+**Delivers:** `watcher.rs` with `notify-debouncer-full` on background thread, PNG-only filter, 500ms debounce, retry-open loop for partial writes, `BatchState` fields added to `state.rs`, pre-rendered badge icons (`tray-0.png` to `tray-9plus.png`), `set_icon()` on file arrival, `"batch-updated"` event emission.
+**Addresses:** Directory watcher, tray badge count, file filter, watcher debounce.
+**Avoids:** Pitfalls 3 (badge broken on Linux), 4 (PNG incomplete write).
+**New crates:** `notify-debouncer-full = "0.7"`.
 
-### Phase 4: Command Layer Wiring
-**Rationale:** Connect the new module to the Tauri command handler; this is last because it requires both `ollama.rs` (Phase 2) and the cleaned `platform.rs` (Phase 3) to be in place.
-**Delivers:** `commit_selection` in `lib.rs` converted to `async fn`; clone-before-await pattern applied for `SharedState`; `ollama::recognize_text(&crop).await?` call in place
-**Addresses:** Async boundary correctness
-**Avoids:** Pitfall 3 (MutexGuard across await)
+### Phase 4: Global Hotkey + Batch OCR Pipeline
+**Rationale:** Hotkey reads key string from config (Phase 2). Batch processing reads from `BatchState` (Phase 3). This is the core value delivery phase — all prior phases are prerequisites. Most complex function in the codebase lives here.
+**Delivers:** Global hotkey registration with `is_registered()` verification and tray fallback on failure, `process_batch_inner()` async function with mtime-sorted file ordering, sequential OCR via `ollama::recognize_text()`, `merge::append_text()` across batch in order, clipboard write, archive to `.jfc-archive/YYYY-MM-DD/`, batch state reset, badge reset, `AtomicBool` guard for concurrent hotkey press protection, `"batch-processed"` event emission.
+**Addresses:** Global hotkey, batch OCR, fuzzy merge across batch, clipboard copy, archive processed files, hotkey conflict graceful degradation, clear batch action.
+**Avoids:** Pitfalls 5 (hotkey silent fail), 6 (OCR out of order), 7 (MutexGuard across await).
+**New crates:** `tauri-plugin-global-shortcut = "2"`.
 
-### Phase 5: Integration Validation
-**Rationale:** End-to-end smoke test to confirm the full pipeline works before closing the milestone.
-**Delivers:** Confirmed working OCR via Ollama; confirmed hard-fail error messages when Ollama is stopped; confirmed correct merge output on multi-capture sessions
-**Addresses:** Empty-text validation, error message UX, merge algorithm compatibility
-**Avoids:** Pitfall 7 (Markdown output from code screenshots) — test with a code-heavy screenshot and extend `sanitize_ocr_output` if merge quality degrades
+### Phase 5: Status Panel UI
+**Rationale:** Frontend can be verified with direct `invoke()` calls during backend phases. UI is last because all IPC commands it calls must already exist. This phase is purely additive to `ui/app.js`.
+**Delivers:** `"batch-updated"` and `"batch-processed"` event listeners in `app.js`, pending file list render, merged text preview, "Process Now" button wired to `process_batch` command, "Clear Batch" button wired to `clear_batch` command, Ollama error display in panel.
+**Addresses:** Status panel, error visibility.
+**Avoids:** No new pitfalls introduced in UI layer.
 
 ### Phase Ordering Rationale
 
-- Phase 1 before 2 because `ollama.rs` will not compile without `reqwest`
-- Phase 2 before 3/4 because the new function must exist before it can be called or the old one removed
-- Phase 3 before 4 because `lib.rs` must reference the new import path, not the old one; removing the old import before adding the new call keeps the diff atomic
-- Phase 5 is terminal; it validates the complete chain and surfaces the Markdown-output pitfall only detectable with real images
+- Phase 1 before everything: process must survive window close before adding any feature that depends on process longevity
+- Phase 2 before Phases 3 and 4: both watcher and hotkey read their configuration from `AppConfig`
+- Phase 3 before Phase 4: batch processing requires `BatchState` fields and a populated `batch: Vec<PathBuf>`
+- Phase 4 before Phase 5: UI commands must exist before the frontend can call them
+- Each phase is independently verifiable without the next phase being complete
 
 ### Research Flags
 
-Phases with well-documented patterns (skip additional research):
-- **Phase 1:** Standard Cargo dependency management — no research needed
-- **Phase 3:** Mechanical deletion — no research needed
-- **Phase 4:** Tauri 2 async command pattern is HIGH confidence from official docs; clone-before-await is thoroughly documented
+Phases with complexity warranting step-level planning attention:
+- **Phase 1:** Tray lifecycle on Linux is environment-dependent; verify `libayatana-appindicator` detection logic works in the target environment before declaring done
+- **Phase 3:** Badge icon pre-rendering requires build-time asset creation; confirm icon asset pipeline before wiring `set_icon()` calls; `notify-debouncer-full` vs `notify-debouncer-mini` — use `full` (STACK.md is authoritative)
+- **Phase 4:** `process_batch_inner()` touches async, Mutex, file I/O, HTTP, merge, clipboard, and filesystem atomically — deserves careful step-by-step implementation; concurrent hotkey press guard (`AtomicBool`) placement needs a decision
 
-Phases that may benefit from validation during implementation:
-- **Phase 2:** GLM-OCR API contract is MEDIUM confidence — the `"Text Recognition:"` prompt and `num_ctx` requirement are well-sourced but behavior with edge-case images (very small crops, non-Latin text) is unverified
-- **Phase 5:** Markdown output behavior (Pitfall 7) cannot be fully characterized without real image data; test coverage here will determine whether `sanitize_ocr_output` needs extension
+Phases with standard, well-documented patterns (skip deep research):
+- **Phase 2:** `toml` + `serde` + `dirs` config loading is boilerplate with multiple confirmed examples
+- **Phase 5:** Event listener + DOM update pattern is identical to existing `app.js` patterns
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | `reqwest 0.12` and `serde_json 1` are industry-standard choices with official docs; version guidance confirmed from crates.io |
-| Features | HIGH | Table-stakes features derived from confirmed GitHub issues and official GLM-OCR docs; anti-features are deliberate scope constraints |
-| Architecture | HIGH | Tauri 2 async command pattern and `std::sync::Mutex` clone-before-await are from official Tauri docs; module split is straightforward |
-| Pitfalls | HIGH | Critical pitfalls backed by active GitHub issues with reproduction steps (ollama/ollama #14114, #14117, HuggingFace discussion #8) |
+| Stack | HIGH | All new crates verified on crates.io; `tauri-plugin-global-shortcut 2.3.1` and `notify-debouncer-full 0.7.0` confirmed; version compatibility verified |
+| Features | HIGH | Tauri 2 plugin APIs verified via official docs; feature dependencies clearly mapped; anti-features argued from first principles |
+| Architecture | HIGH | Official Tauri 2 docs + confirmed community patterns; build order validated against dependency graph; working code samples provided and reviewed |
+| Pitfalls | MEDIUM-HIGH | Most pitfalls verified via Tauri GitHub issues and notify-rs issue tracker; Linux AppIndicator limits confirmed via multiple sources; kqueue `Access(Close(Write))` event availability on macOS is MEDIUM confidence |
 
-**Overall confidence:** HIGH for implementation approach; MEDIUM for GLM-OCR model behavior edge cases
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **GLM-OCR prompt sensitivity:** The `"Text Recognition:"` prefix is confirmed required, but alternative prompt variants and their effect on output formatting are not characterized. If response preamble stripping becomes complex, revisit the prompt.
-- **Ollama version compatibility:** Issues #14117, #14296, #14494, #14498 indicate GLM-OCR had loading failures in Ollama 0.15.6–0.17.4. The running Ollama version at `192.168.1.12` is unknown. Verify version compatibility before integration testing; document the confirmed-working version in setup notes.
-- **Non-Latin text fidelity:** GLM-OCR benchmarks focus on English and Chinese. Mixed-language or symbol-heavy captures are untested in this context.
-- **`num_ctx` optimal value:** Research cites 10240 as the minimum safe value; 16384 appears in some sources. The FEATURES.md recommendation is 16384 while PITFALLS.md cites 10240. Use 16384 to be conservative — it has no downside on a local inference host.
+- **`notify-debouncer-full` vs `notify-debouncer-mini` discrepancy:** ARCHITECTURE.md code samples use `notify-debouncer-mini`; STACK.md specifies `notify-debouncer-full`. Use `notify-debouncer-full = "0.7"` — it is the more complete implementation. Update any code samples referencing the mini variant during Phase 3 execution.
+- **Linux badge rendering variation:** `set_icon()` with pre-rendered PNGs is the correct approach, but the visual result varies by desktop environment (GNOME with AppIndicator extension, KDE, XFCE). Accept DE-specific variation as expected behavior rather than a bug.
+- **Concurrent hotkey press handling:** The `AtomicBool processing_flag` approach is recommended but the exact behavior (queue second press vs. silently drop) needs a decision during Phase 4. Silently dropping is simpler and correct for this use case.
+- **Ollama endpoint config timing:** ARCHITECTURE.md notes endpoint "becomes config-driven in v2.1" but FEATURES.md lists `ollama_endpoint` as a v2.0 config field. FEATURES.md is authoritative for scope — treat it as a v2.0 field.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Tauri 2 async commands](https://v2.tauri.app/develop/calling-rust/) — async fn command handlers, Tokio runtime ownership
-- [Tauri 2 state management](https://v2.tauri.app/develop/state-management/) — SharedState patterns
-- [Ollama API reference](https://github.com/ollama/ollama/blob/main/docs/api.md) — `/api/generate` response schema
-- [Ollama Vision docs](https://docs.ollama.com/capabilities/vision) — base64 image format
-- [reqwest crates.io](https://crates.io/crates/reqwest) — 0.12.24 current stable, breaking changes in 0.13
+- [Tauri 2 System Tray docs](https://v2.tauri.app/learn/system-tray/) — tray-icon feature, TrayIconBuilder, set_title badge, set_icon
+- [Tauri 2 Global Shortcut plugin docs](https://v2.tauri.app/plugin/global-shortcut/) — registration pattern, GlobalShortcutExt trait
+- [Tauri 2 Calling Frontend from Rust](https://v2.tauri.app/develop/calling-frontend/) — app.emit() pattern
+- [tauri-plugin-global-shortcut crates.io](https://crates.io/crates/tauri-plugin-global-shortcut) — version 2.3.1 confirmed
+- [notify-debouncer-full docs.rs](https://docs.rs/notify-debouncer-full) — version 0.7.0 confirmed
+- [toml crates.io](https://crates.io/crates/toml) — version 1.0.6 confirmed
+- [dirs crates.io](https://crates.io/crates/dirs) — version 6.0.0 confirmed, platform paths verified
+- [Tauri Discussion #11489](https://github.com/tauri-apps/tauri/discussions/11489) — tray-only app ExitRequested + prevent_exit pattern
 
 ### Secondary (MEDIUM confidence)
-- [GLM-OCR Ollama deploy README](https://github.com/zai-org/GLM-OCR/blob/main/examples/ollama-deploy/README.md) — canonical prompt `"Text Recognition:"`, endpoint recommendation
-- [ollama.com/library/glm-ocr](https://ollama.com/library/glm-ocr) — model name, available tags
-- [GLM-OCR HuggingFace discussion #8](https://huggingface.co/zai-org/GLM-OCR/discussions/8) — `num_ctx` fix, OpenAI-compat endpoint issue
-- [ollama-js issue #68](https://github.com/ollama/ollama-js/issues/68) — raw base64 vs data URL format
+- [Tauri GitHub Issue #8982](https://github.com/tauri-apps/tauri/issues/8982) — duplicate tray icons bug
+- [Tauri GitHub Issue #13511](https://github.com/tauri-apps/tauri/issues/13511) — prevent exit when all windows closed
+- [notify-rs Issue #267](https://github.com/notify-rs/notify/issues/267) — rapid-fire creation event loss
+- [notify-rs Issue #365](https://github.com/notify-rs/notify/issues/365) — kqueue Create event missing
+- [tray-icon crate README](https://github.com/tauri-apps/tray-icon) — Linux AppIndicator runtime requirements
+- [Tokio shared state tutorial](https://tokio.rs/tokio/tutorial/shared-state) — std::sync::Mutex vs tokio::sync::Mutex
+- Project memory: JFC Ollama OCR Migration — clone-before-await mutex pattern (verified in v1 implementation)
 
-### Tertiary (issue-tracker evidence)
-- [ollama/ollama #14114](https://github.com/ollama/ollama/issues/14114) — GLM-OCR image size limit >2048px
-- [ollama/ollama #14117](https://github.com/ollama/ollama/issues/14117) — "failed to fully read image"
-- [ollama/ollama #14296, #14494, #14498](https://github.com/ollama/ollama/issues/) — GLM-OCR loading failures in specific Ollama versions (open issues, may be resolved)
-- [Tauri discussion #7963](https://github.com/tauri-apps/tauri/discussions/7963) — async command Send requirement
+### Tertiary (LOW confidence / needs validation)
+- Linux desktop environment badge rendering on KDE/XFCE — accepted as environment-dependent; pre-rendered icon approach mitigates
+- macOS kqueue `Access(Close(Write))` event availability — retry-open loop is the safe fallback regardless of event kind
 
 ---
-*Research completed: 2026-03-20*
+*Research completed: 2026-03-21*
 *Ready for roadmap: yes*

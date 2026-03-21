@@ -1,178 +1,173 @@
 # Technology Stack
 
-**Project:** JustFuckingCopy — Ollama GLM-OCR Integration
-**Researched:** 2026-03-20
-**Overall confidence:** HIGH for HTTP client selection; MEDIUM for GLM-OCR API specifics (official docs confirmed, some behavior details from community reports)
+**Project:** JustFuckingCopy — v2.0 Ambient Tray
+**Researched:** 2026-03-21
+**Confidence:** HIGH for Tauri plugin choices (official docs confirmed); HIGH for notify/toml crate versions (crates.io confirmed); MEDIUM for badge-via-title pattern (community-confirmed, macOS badge API not natively exposed by Tauri)
 
 ---
 
 ## Context
 
-This milestone replaces three platform-specific OCR backends (Apple Vision Swift subprocess, Tesseract CLI subprocess, Windows stub) with a single async HTTP call to an Ollama instance running `glm-ocr` at `192.168.1.12:11434`. The change is isolated to `platform.rs` and the `recognize_text_from_png` function. All other code is untouched.
+This is a **subsequent milestone** document. The existing stack from v1.0 is fully validated and carries forward unchanged:
+
+- `tauri = "2"` — app framework
+- `reqwest = "0.12"` — Ollama HTTP client
+- `tauri-plugin-clipboard-manager = "2"` — clipboard write
+- `image = "0.25"` — PNG processing
+- `serde = "1"`, `serde_json = "1"`, `base64 = "0.22"` — serialization
+
+This document covers **only what is new** for v2.0: system tray, directory watching, global hotkey, TOML config, and archive file operations.
 
 ---
 
-## Recommended Stack
+## New Dependencies
 
-### New Dependencies to Add
+### Tauri Feature Flags (no new crate, just feature additions)
 
-| Library | Version | Purpose | Why |
-|---------|---------|---------|-----|
-| `reqwest` | `0.12` | Async HTTP client — POST to Ollama | Industry-standard Rust HTTP client. Tokio-native. The `0.12` series (latest: 0.12.24) is the stable production line; `0.13` is very new with TLS-backend breaking changes not worth chasing. Use `default-features = false, features = ["json", "rustls-tls"]` to keep binary lean and avoid native-tls link complexity. |
-| `tokio` | `1` | Async runtime | Tauri 2 already embeds a Tokio 1 runtime. Add it as a direct dependency with `features = ["rt"]` so `#[tokio::test]` works in tests. Do NOT add `#[tokio::main]` — Tauri owns the runtime entry point. |
-| `serde_json` | `1` | Build Ollama request payloads and parse responses | Already pulled transitively via `serde`; make it explicit. The `json!()` macro makes request construction readable and avoids manual struct definitions for a one-off API shape. |
+| Change | What To Add | Why |
+|--------|-------------|-----|
+| System tray | `tauri = { version = "2", features = ["tray-icon"] }` | The `tray-icon` feature is gated in Tauri 2 — it is not included by default. Adds `tauri::tray::TrayIcon`, `TrayIconBuilder`, and menu support. This is the correct Tauri 2 rename of v1's `system-tray` feature. |
 
-### Libraries to Remove
+The `tray-icon` feature is **built into the `tauri` crate itself** — no separate crate is needed. The `TrayIconBuilder` API lives at `tauri::tray`.
 
-| Library / Code | Why Remove |
-|----------------|-----------|
-| `src-tauri/scripts/vision_ocr.swift` | Apple Vision OCR subprocess — replaced entirely |
-| `#[cfg(target_os = "macos")]` OCR block in `platform.rs` | Dead code after migration |
-| `#[cfg(target_os = "linux")]` OCR block in `platform.rs` | Dead code — Tesseract subprocess gone |
-| `#[cfg(target_os = "windows")]` OCR block in `platform.rs` | Stub — remove cleanly |
-| Linux `tesseract` binary runtime requirement | No longer needed |
+### New Crates to Add
 
-### Existing Dependencies That Stay
-
-| Library | Version | Stays Because |
-|---------|---------|---------------|
-| `image` | 0.25 | Still needed for `crop_png` — the crop step produces the PNG bytes we send to Ollama |
-| `base64` | 0.22 | Still needed for frontend data-URL encoding; also used to encode PNG bytes for Ollama request body |
-| `serde` | 1 | Unchanged |
-| `tauri` | 2 | Unchanged |
-| `tauri-plugin-clipboard-manager` | 2 | Unchanged |
+| Library | Version | Purpose | Why This One |
+|---------|---------|---------|--------------|
+| `tauri-plugin-global-shortcut` | `"2"` | Register OS-level global hotkeys (Ctrl+Shift+C by default) that fire even when the app has no focused window | Official first-party Tauri plugin. Latest stable: 2.3.1. Abstracts `x11` (Linux) and `CGEventTap` (macOS) behind a clean `register()` API. No alternative exists in the Tauri ecosystem that integrates with the event loop cleanly. |
+| `notify-debouncer-full` | `"0.7"` | Watch a directory for new PNG/screenshot files, with debounce to suppress duplicate events from screenshot tool write-then-rename sequences | `notify` (the underlying crate, 8.2.0) fires raw OS events that include both `Create` and `Rename` events for a single screenshot save. `notify-debouncer-full` 0.7 collapses these into a single deduplicated event after a configurable timeout, which is exactly the behavior needed for screenshot watchers. Use this over bare `notify` to avoid processing the same file twice. |
+| `toml` | `"1"` | Parse `~/.config/justfuckingcopy/config.toml` into a Rust config struct | The canonical TOML parser for Rust, maintained by the TOML spec authors. Latest: 1.0.6+spec-1.1.0. Combined with `serde`'s `#[derive(Deserialize)]` (already in the project), `toml::from_str()` parses a config file into a typed struct in ~5 lines. No alternative needed. |
+| `dirs` | `"6"` | Resolve `~/.config/` on both macOS and Linux following XDG / Apple conventions | Latest: 6.0.0. `dirs::config_dir()` returns `~/Library/Application Support` on macOS and `~/.config` on Linux — the correct platform-specific paths. Avoids hardcoding `~/.config` which is wrong on macOS. Tiny dependency, zero risk. |
 
 ---
 
 ## Cargo.toml Changes
 
+The full `[dependencies]` block after v2.0 additions:
+
 ```toml
 [dependencies]
 base64 = "0.22"
+dirs = "6"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+notify-debouncer-full = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-tokio = { version = "1", features = ["rt"] }
-tauri = { version = "2" }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-clipboard-manager = "2"
+tauri-plugin-global-shortcut = "2"
+toml = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
 ```
+
+Note: `tokio` stays dev-only — Tauri owns the runtime at runtime. The `notify-debouncer-full` crate spawns its own thread internally; no additional runtime configuration is needed.
 
 ---
 
-## Ollama API Contract
+## Integration Points with Existing Code
 
-### Endpoint
+### System Tray (`tauri::tray`)
 
-```
-POST http://192.168.1.12:11434/api/generate
-Content-Type: application/json
-```
+**Badge count** is implemented via `TrayIcon::set_title()`. On macOS, `set_title` renders text next to the tray icon in the menu bar — this is how all macOS menu bar badge-style counters work (e.g., "3" next to the icon). On Linux (GTK status icon), `set_title` displays alongside the icon if supported by the desktop environment. There is no native OS badge API exposed by Tauri 2 — `set_title` is the correct approach.
 
-Use `/api/generate`, not `/api/chat`. The GLM-OCR authors explicitly recommend the native generate endpoint over the OpenAI-compatible chat endpoint for vision requests due to limitations in Ollama's OpenAI-compat layer for image handling.
+The tray icon itself is created once in `lib.rs` `setup()` and stored via Tauri's managed state or `app.tray_by_id()`. Dynamic icon swapping (e.g., icon changes when batch is non-empty) uses `TrayIcon::set_icon()`.
 
-**Confidence:** MEDIUM — sourced from zai-org/GLM-OCR official repo README and confirmed by multiple community reports; no contradictory evidence found.
+**No main window on launch**: Remove the window from `tauri.conf.json`. Handle `RunEvent::ExitRequested` with `api.prevent_exit()` to keep the event loop alive when no windows are open. This is documented Tauri 2 pattern for tray-only apps.
 
-### Request Body
+### Directory Watcher (`notify-debouncer-full`)
 
-```json
-{
-  "model": "glm-ocr",
-  "prompt": "Text Recognition:",
-  "images": ["<base64-encoded PNG, no data-URL prefix>"],
-  "stream": false
-}
-```
+The watcher runs in a background thread spawned via `tauri::async_runtime::spawn_blocking()`. It sends debounced `DebouncedEvent` notifications into a `tokio::sync::mpsc` channel. The Tauri command handler (or a setup hook) receives from that channel and updates `SharedState`.
 
-Key details:
-- `model`: `"glm-ocr"` — the tag Ollama uses. Use `"glm-ocr:latest"` if the default tag is not pulled; both resolve identically.
-- `prompt`: `"Text Recognition:"` — the canonical prompt string used in GLM-OCR's own Ollama deploy examples. The model's chat template expects this prefix.
-- `images`: array with one element — raw base64 string of the PNG bytes. No `data:image/png;base64,` prefix. Strip it if encoding via the `base64` crate.
-- `stream`: `false` — essential. Without this, Ollama streams newline-delimited JSON chunks. Setting it to false returns one complete JSON object.
-- `num_ctx` is NOT sent in the request body. If context crashes occur, the Ollama operator must configure the modelfile with `PARAMETER num_ctx 16384`. This is an ops concern, not a code concern.
+Key debounce configuration: use a 500ms timeout — enough to let screenshot tools finish their write-then-rename sequence without creating duplicate batch entries.
 
-**Confidence:** MEDIUM — prompt string and endpoint sourced from official GLM-OCR repo deploy examples. The `"Text Recognition:"` prompt is what their reference implementation uses; alternative prompts work but may affect output formatting.
+**Watch only PNG files**: Filter `DebouncedEvent` by checking `event.paths` extensions. Screenshot tools on macOS write `.png` by default; Linux tools write `.png` or `.jpg`. Filter on extension to ignore transient `.tmp` files.
 
-### Response Body
+### Global Hotkey (`tauri-plugin-global-shortcut`)
 
-```json
-{
-  "model": "glm-ocr",
-  "created_at": "...",
-  "response": "The recognized text content here...",
-  "done": true,
-  "done_reason": "stop"
-}
-```
-
-The recognized text is in the top-level `"response"` field. Parse only this field; discard the rest. Pass the value directly into the existing `sanitize_ocr_output()` function — it handles `\r\n` normalization, trailing whitespace, and blank line removal already.
-
-**Confidence:** HIGH — standard Ollama `/api/generate` non-streaming response format, documented in official Ollama API docs and confirmed by multiple sources.
-
-### Error Cases to Handle
-
-| Condition | How to Detect | What to Return |
-|-----------|--------------|----------------|
-| Ollama unreachable | `reqwest` connection error | `Err("OCR failed: Ollama is unreachable at 192.168.1.12:11434. Is it running?")` |
-| HTTP non-200 status | `response.status().is_success()` is false | `Err(format!("OCR failed: Ollama returned HTTP {}", status))` |
-| `done: false` in response | Parse `done` field | Should not occur with `stream: false`; treat as error |
-| Empty `response` field | Empty string after trim | Return `Err("OCR returned empty text")` or pass through — merge handles empty gracefully |
-| Model not loaded | Ollama returns 404 or error JSON | Surface Ollama's error message verbatim |
-
----
-
-## Integration Pattern
-
-The entire change lives in `platform.rs`. The function signature is unchanged:
+Register in `setup()` after tray creation:
 
 ```rust
-pub fn recognize_text_from_png(bytes: &[u8]) -> Result<String, String>
+app.handle().plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
 ```
 
-This function is called from `lib.rs` in the `commit_selection` Tauri command, which is already `async`. The new implementation will be:
+Then register the shortcut from Rust (not JS — the app has no persistent window):
 
 ```rust
-pub async fn recognize_text_from_png(bytes: &[u8]) -> Result<String, String>
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+app.global_shortcut().register("Ctrl+Shift+C")?;
 ```
 
-The caller in `lib.rs` already runs in an async context (`#[tauri::command]` with `async fn`), so adding `async` to this function and `.await`-ing it in `lib.rs` requires no structural changes.
+The shortcut string format is `"Modifier+Key"`. The handler fires a Tauri event that triggers `process_batch()` — OCR all pending files, run merge, write to clipboard.
 
-### Client Instantiation
+**Hotkey string comes from TOML config** — read the config before registering.
 
-Do NOT store a `reqwest::Client` in `AppState`. For a low-frequency use case (one OCR call per user marquee commit), constructing a client per call is acceptable and avoids the complexity of injecting it into `SharedState`. Each call creates, uses, and drops a client. If response latency becomes a concern, moving the client to state is a straightforward refactor.
+### TOML Config (`toml` + `serde` + `dirs`)
+
+Config file location: `dirs::config_dir().unwrap().join("justfuckingcopy/config.toml")`
+
+This resolves to:
+- macOS: `~/Library/Application Support/justfuckingcopy/config.toml`
+- Linux: `~/.config/justfuckingcopy/config.toml`
+
+Config is loaded once at startup in `setup()` before tray and watcher initialization. If the file does not exist, use hardcoded defaults (watch dir, hotkey, Ollama endpoint). Do not error on missing config — the app must work out of the box.
+
+### Archive File Operations (std::fs)
+
+No new crate needed. Use `std::fs::rename()` to move processed files into an `archive/` subdirectory alongside the watch directory. `std::fs::create_dir_all()` ensures the archive dir exists before the first move. All of this is sync and runs in a `spawn_blocking` context (already the pattern for the file watcher thread).
 
 ---
 
-## What NOT to Use
+## What NOT to Add
 
-| Option | Why Not |
-|--------|---------|
-| `tauri-plugin-http` | This is a Tauri plugin that exposes HTTP to the JavaScript frontend via IPC. The OCR call is entirely Rust-side — there is no reason to route it through the plugin or involve the frontend at all. |
-| `ureq` (synchronous HTTP) | Synchronous blocking in an async Tauri command handler will deadlock the Tokio runtime. `reqwest` is the correct choice for async contexts. |
-| `hyper` (direct) | Lower-level than needed. `reqwest` wraps hyper with a clean API and adds JSON support. No benefit to using hyper directly here. |
-| `reqwest` 0.13 | Too new. Released recently with breaking changes: `query` and `form` are now opt-in features, and the default TLS backend switched to `aws-lc`. The 0.12 series is the current stable line with 0.12.24 as latest. Adopt 0.13 in a future maintenance pass. |
-| `#[tokio::main]` on `main` | Tauri owns the runtime. Adding `#[tokio::main]` creates a second runtime and causes conflicts. Tauri's async commands run on Tauri's embedded Tokio runtime automatically. |
-| OpenAI-compatible endpoint `/v1/chat/completions` | Ollama exposes this for compatibility, but it has known limitations for vision/image requests with GLM-OCR. Use `/api/generate`. |
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| Bare `notify` crate (without debouncer) | Screenshot tools emit 2–4 raw events per file save (Create, Modify, Rename). Without debouncing, the same file gets OCR'd multiple times. | `notify-debouncer-full = "0.7"` |
+| `tauri-plugin-system-tray` (v1 name) | Renamed in Tauri 2. Does not exist as a separate plugin in v2. | `tauri = { features = ["tray-icon"] }` |
+| `global-hotkey` crate (standalone) | Does not integrate with Tauri's event loop. Managing two event loops causes conflicts. | `tauri-plugin-global-shortcut = "2"` |
+| `config` crate (layered config) | Heavyweight — supports env vars, multiple formats, layered merging. Overkill for a single TOML file with 3–5 fields. | `toml = "1"` + `serde` |
+| `dirs-next` or `directories` crate | `dirs-next` is abandoned (last release 2021). `directories` adds `ProjectDirs` abstraction not needed here. | `dirs = "6"` (active, maintained) |
+| `inotify` / `kqueue` crates directly | Platform-specific. Would require `#[cfg]` splitting. | `notify-debouncer-full` abstracts both |
 
 ---
 
-## Tauri-Specific Notes
+## Version Compatibility
 
-**CSP is irrelevant here.** CSP (`csp: null` in `tauri.conf.json`) governs what the WebView frontend can load. HTTP requests made from Rust via `reqwest` in a command handler bypass the WebView entirely — they are native OS network calls. No CSP or plugin scope configuration is needed for this use case.
+| Package | Version | Compatible With | Notes |
+|---------|---------|-----------------|-------|
+| `tauri` | `"2"` with `tray-icon` feature | `tauri-plugin-global-shortcut = "2"` | Both must be in the `"2"` semver series; mixing v1 plugin with v2 core causes compile errors |
+| `notify-debouncer-full` | `"0.7"` | `notify` (pulled transitively as `"8"`) | Do NOT also add bare `notify` to Cargo.toml — let `notify-debouncer-full` pull it as a dependency to avoid version conflicts |
+| `toml` | `"1"` | `serde = "1"` | Requires serde's `derive` feature, which is already present in the project |
+| `dirs` | `"6"` | No conflicts | Pure stdlib + platform SDK, no shared dependencies with Tauri |
 
-**Async command handlers.** Tauri 2 fully supports `async fn` command handlers. The existing `commit_selection` handler is already async. Changing `recognize_text_from_png` to async and awaiting it is the idiomatic path.
+---
+
+## Alternatives Considered
+
+| Recommended | Alternative | Why Not |
+|-------------|-------------|---------|
+| `notify-debouncer-full "0.7"` | `notify "8"` (raw) | Raw notify emits multiple events per screenshot write; debouncer is essential for screenshot workflows |
+| `toml "1"` | `serde_yaml`, `ron` | Config must be `.toml` per PROJECT.md requirement; other formats not applicable |
+| `tauri-plugin-global-shortcut "2"` | `rdev` crate | `rdev` requires a separate event loop thread and does not integrate with Tauri's app lifecycle; plugin is cleaner and officially supported |
+| `dirs "6"` | Hardcoded `~/.config` | Wrong on macOS (correct path is `~/Library/Application Support`); `dirs` handles both platforms correctly |
 
 ---
 
 ## Sources
 
-- [Ollama Vision API docs](https://docs.ollama.com/capabilities/vision) — image base64 format for `/api/generate`
-- [Ollama API reference (GitHub)](https://github.com/ollama/ollama/blob/main/docs/api.md) — response JSON schema
-- [zai-org/GLM-OCR Ollama deploy README](https://github.com/zai-org/GLM-OCR/blob/main/examples/ollama-deploy/README.md) — canonical prompt, endpoint recommendation
-- [ollama.com/library/glm-ocr](https://ollama.com/library/glm-ocr) — model name, available tags
-- [GLM-OCR PR #14024 in ollama/ollama](https://github.com/ollama/ollama/pull/14024) — confirmed native Ollama support
-- [reqwest crates.io](https://crates.io/crates/reqwest) — version 0.12.24 current stable
-- [reqwest 0.13 docs.rs](https://docs.rs/crate/reqwest/latest) — confirmed 0.13 exists, reviewed breaking changes
-- [serde_json crates.io](https://crates.io/crates/serde_json) — version 1.0.149 current
-- [Tauri HTTP client plugin docs](https://v2.tauri.app/plugin/http-client/) — confirmed plugin is JS-frontend-facing only
-- [Tauri async runtime docs](https://docs.rs/tauri/latest/tauri/async_runtime/index.html) — Tauri owns Tokio runtime, no `#[tokio::main]` needed
+- [Tauri 2 System Tray docs](https://v2.tauri.app/learn/system-tray/) — `tray-icon` feature flag, `TrayIconBuilder` API, `set_title` for badge, `set_icon` for dynamic updates
+- [Tauri 2 tray namespace JS/Rust reference](https://v2.tauri.app/reference/javascript/api/namespacetray/) — `TrayIcon` struct methods confirmed
+- [Tauri 2 Global Shortcut plugin docs](https://v2.tauri.app/plugin/global-shortcut/) — registration pattern, `GlobalShortcutExt` trait
+- [tauri-plugin-global-shortcut crates.io](https://crates.io/crates/tauri-plugin-global-shortcut) — confirmed latest stable 2.3.1
+- [notify-debouncer-full crates.io](https://crates.io/crates/notify-debouncer-full) — confirmed version 0.7.0
+- [notify crates.io](https://crates.io/crates/notify) — confirmed latest 8.2.0 (pulled transitively)
+- [toml crates.io](https://crates.io/crates/toml) — confirmed latest 1.0.6+spec-1.1.0
+- [dirs crates.io / docs.rs](https://docs.rs/crate/dirs/latest) — confirmed latest 6.0.0
+- [Tauri 2 tray-only app discussion](https://github.com/tauri-apps/tauri/discussions/11489) — `RunEvent::ExitRequested` + `prevent_exit()` pattern for windowless apps
+- [Tauri async_runtime docs](https://docs.rs/tauri/latest/tauri/async_runtime/index.html) — `spawn_blocking` for file watcher thread
+
+---
+*Stack research for: JustFuckingCopy v2.0 Ambient Tray — new feature additions only*
+*Researched: 2026-03-21*
