@@ -9,9 +9,7 @@ use std::time::Duration;
 use tauri::{State, WebviewWindow};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-use crate::platform::{
-    capture_snapshot as platform_capture_snapshot, crop_png, recognize_text_from_png,
-};
+use crate::platform::{capture_snapshot as platform_capture_snapshot, crop_png};
 use crate::state::{AppStatePayload, SelectionRect, SharedState, SnapshotPayload};
 
 #[derive(serde::Deserialize)]
