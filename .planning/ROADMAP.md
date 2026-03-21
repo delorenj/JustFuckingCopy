@@ -45,7 +45,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 02-01-PLAN.md — Delete `vision_ocr.swift`; remove Tesseract, Apple Vision, and Windows stub OCR code from `platform.rs`; remove `recognize_text_from_png` from `lib.rs` import
+- [x] 02-01-PLAN.md — Delete `vision_ocr.swift`; remove Tesseract, Apple Vision, and Windows stub OCR code from `platform.rs`; remove `recognize_text_from_png` from `lib.rs` import
 
 ### Phase 3: Command Wiring
 **Goal**: The full pipeline works end-to-end — marquee selection triggers Ollama OCR and produces correct deduplicated clipboard text

@@ -19,10 +19,10 @@ Requirements for OCR backend migration to Ollama GLM-OCR.
 
 ### Code Cleanup
 
-- [ ] **CLN-01**: Apple Vision OCR Swift script (`src-tauri/scripts/vision_ocr.swift`) is deleted
-- [ ] **CLN-02**: Tesseract CLI integration code is removed from `platform.rs`
-- [ ] **CLN-03**: Windows OCR stub is removed from `platform.rs`
-- [ ] **CLN-04**: All `#[cfg(target_os)]` conditional compilation blocks for OCR are removed
+- [x] **CLN-01**: Apple Vision OCR Swift script (`src-tauri/scripts/vision_ocr.swift`) is deleted
+- [x] **CLN-02**: Tesseract CLI integration code is removed from `platform.rs`
+- [x] **CLN-03**: Windows OCR stub is removed from `platform.rs`
+- [x] **CLN-04**: All `#[cfg(target_os)]` conditional compilation blocks for OCR are removed
 - [x] **CLN-05**: New `ollama.rs` module contains all Ollama HTTP logic, independently testable
 
 ### Async Integration
@@ -67,10 +67,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OCR-05 | Phase 1 | Complete |
 | OCR-06 | Phase 1 | Complete |
 | OCR-07 | Phase 1 | Complete |
-| CLN-01 | Phase 2 | Pending |
-| CLN-02 | Phase 2 | Pending |
-| CLN-03 | Phase 2 | Pending |
-| CLN-04 | Phase 2 | Pending |
+| CLN-01 | Phase 2 | Complete |
+| CLN-02 | Phase 2 | Complete |
+| CLN-03 | Phase 2 | Complete |
+| CLN-04 | Phase 2 | Complete |
 | CLN-05 | Phase 1 | Complete |
 | ASY-01 | Phase 3 | Pending |
 | ASY-02 | Phase 3 | Pending |
