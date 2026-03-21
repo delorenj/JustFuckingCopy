@@ -13,7 +13,7 @@ Replace three platform-specific OCR backends (Apple Vision Swift, Tesseract CLI,
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Ollama HTTP Module** - Build and test the new `ollama.rs` OCR module in isolation (completed 2026-03-21)
-- [ ] **Phase 2: Platform Cleanup** - Remove all legacy OCR backends and dead code
+- [x] **Phase 2: Platform Cleanup** - Remove all legacy OCR backends and dead code (completed 2026-03-21)
 - [ ] **Phase 3: Command Wiring** - Connect Ollama OCR to `commit_selection` and validate end-to-end
 
 ## Phase Details
@@ -56,10 +56,10 @@ Plans:
   2. Drawing a marquee and committing a selection triggers an Ollama OCR call and the result appears in the merged text area
   3. When Ollama is stopped, committing a selection shows a clear error message in the UI rather than hanging or crashing
   4. Multi-capture sessions with overlapping text produce correctly deduplicated output (merge algorithm unaffected by OCR source change)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 03-01: Convert `commit_selection` to `async fn` with clone-before-await state pattern; wire `ollama::recognize_text` call; smoke-test full capture-OCR-merge-copy flow
+- [ ] 03-01-PLAN.md — Convert `commit_selection` to `async fn` with clone-before-await state pattern; replace `recognize_text_from_png` with `ollama::recognize_text(&crop).await?`; verify `cargo build` and `cargo test` pass
 
 ## Progress
 
@@ -69,5 +69,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Ollama HTTP Module | 1/1 | Complete   | 2026-03-21 |
-| 2. Platform Cleanup | 0/1 | Not started | - |
+| 2. Platform Cleanup | 1/1 | Complete   | 2026-03-21 |
 | 3. Command Wiring | 0/1 | Not started | - |
