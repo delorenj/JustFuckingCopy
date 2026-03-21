@@ -66,38 +66,51 @@ fn capture_snapshot(
 }
 
 #[tauri::command]
-fn commit_selection(
+async fn commit_selection(
     request: CommitSelectionRequest,
     state: State<'_, SharedState>,
 ) -> Result<AppStatePayload, String> {
-    let mut guard = state
-        .inner
-        .lock()
-        .map_err(|_| "State lock was poisoned.".to_string())?;
+    // Lock scope 1: extract data needed before the await, then drop the guard
+    let (snapshot_id, crop) = {
+        let guard = state
+            .inner
+            .lock()
+            .map_err(|_| "State lock was poisoned.".to_string())?;
 
-    let snapshot = guard
-        .current_snapshot
-        .clone()
-        .ok_or_else(|| "Capture a snapshot before committing a selection.".to_string())?;
+        let snapshot = guard
+            .current_snapshot
+            .clone()
+            .ok_or_else(|| "Capture a snapshot before committing a selection.".to_string())?;
 
-    if snapshot.id != request.snapshot_id {
-        return Err("The snapshot changed before this selection was committed.".into());
-    }
+        if snapshot.id != request.snapshot_id {
+            return Err("The snapshot changed before this selection was committed.".into());
+        }
 
-    let crop = crop_png(
-        &snapshot.png_bytes,
-        request.selection.x,
-        request.selection.y,
-        request.selection.width,
-        request.selection.height,
-    )?;
-    let recognized_text = recognize_text_from_png(&crop)?;
+        let crop = crop_png(
+            &snapshot.png_bytes,
+            request.selection.x,
+            request.selection.y,
+            request.selection.width,
+            request.selection.height,
+        )?;
+
+        (snapshot.id, crop)
+        // guard drops here — MutexGuard is NOT held across .await
+    };
+
+    // Await outside the lock scope
+    let recognized_text = ollama::recognize_text(&crop).await?;
 
     if recognized_text.trim().is_empty() {
         return Err("OCR returned no text. Try a tighter marquee or a clearer zoom level.".into());
     }
 
-    guard.push_segment(snapshot.id, request.selection, recognized_text);
+    // Lock scope 2: write results back into state
+    let mut guard = state
+        .inner
+        .lock()
+        .map_err(|_| "State lock was poisoned.".to_string())?;
+    guard.push_segment(snapshot_id, request.selection, recognized_text);
     Ok(guard.to_payload())
 }
 
