@@ -60,26 +60,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OCR-01 | Pending | Pending |
-| OCR-02 | Pending | Pending |
-| OCR-03 | Pending | Pending |
-| OCR-04 | Pending | Pending |
-| OCR-05 | Pending | Pending |
-| OCR-06 | Pending | Pending |
-| OCR-07 | Pending | Pending |
-| CLN-01 | Pending | Pending |
-| CLN-02 | Pending | Pending |
-| CLN-03 | Pending | Pending |
-| CLN-04 | Pending | Pending |
-| CLN-05 | Pending | Pending |
-| ASY-01 | Pending | Pending |
-| ASY-02 | Pending | Pending |
+| OCR-01 | Phase 1 | Pending |
+| OCR-02 | Phase 1 | Pending |
+| OCR-03 | Phase 1 | Pending |
+| OCR-04 | Phase 1 | Pending |
+| OCR-05 | Phase 1 | Pending |
+| OCR-06 | Phase 1 | Pending |
+| OCR-07 | Phase 1 | Pending |
+| CLN-01 | Phase 2 | Pending |
+| CLN-02 | Phase 2 | Pending |
+| CLN-03 | Phase 2 | Pending |
+| CLN-04 | Phase 2 | Pending |
+| CLN-05 | Phase 1 | Pending |
+| ASY-01 | Phase 3 | Pending |
+| ASY-02 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 14 total
-- Mapped to phases: 0
-- Unmapped: 14
+- Mapped to phases: 14
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-20*
-*Last updated: 2026-03-20 after initial definition*
+*Last updated: 2026-03-21 after roadmap creation*
