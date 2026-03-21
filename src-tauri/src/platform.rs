@@ -1,12 +1,9 @@
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use image::{DynamicImage, GenericImageView, ImageFormat};
-
-const VISION_OCR_SCRIPT: &str = include_str!("../scripts/vision_ocr.swift");
 
 pub fn capture_snapshot() -> Result<(Vec<u8>, u32, u32), String> {
     let path = temp_path("snapshot", "png");
@@ -52,90 +49,6 @@ pub fn crop_png(bytes: &[u8], x: u32, y: u32, width: u32, height: u32) -> Result
         .write_to(&mut output, ImageFormat::Png)
         .map_err(|error| format!("Failed to encode crop: {error}"))?;
     Ok(output.into_inner())
-}
-
-pub fn recognize_text_from_png(bytes: &[u8]) -> Result<String, String> {
-    let path = temp_path("ocr-crop", "png");
-    fs::write(&path, bytes).map_err(|error| format!("Failed to write OCR crop: {error}"))?;
-
-    let result = recognize_text_from_file(&path);
-    let _ = fs::remove_file(&path);
-    result
-}
-
-#[cfg(target_os = "macos")]
-fn recognize_text_from_file(path: &Path) -> Result<String, String> {
-    let mut process = Command::new("swift")
-        .arg("-")
-        .arg(path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| format!("Failed to start Swift OCR bridge: {error}"))?;
-
-    if let Some(stdin) = process.stdin.as_mut() {
-        stdin
-            .write_all(VISION_OCR_SCRIPT.as_bytes())
-            .map_err(|error| format!("Failed to send Vision OCR script to Swift: {error}"))?;
-    }
-
-    let output = process
-        .wait_with_output()
-        .map_err(|error| format!("Vision OCR process failed: {error}"))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Vision OCR failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-
-    Ok(sanitize_ocr_output(
-        String::from_utf8_lossy(&output.stdout).to_string(),
-    ))
-}
-
-#[cfg(target_os = "linux")]
-fn recognize_text_from_file(path: &Path) -> Result<String, String> {
-    let output = Command::new("tesseract")
-        .arg(path)
-        .arg("stdout")
-        .arg("-l")
-        .arg("eng")
-        .arg("--psm")
-        .arg("6")
-        .output()
-        .map_err(|error| {
-            format!("Failed to launch tesseract. Install it or wire another OCR backend. {error}")
-        })?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "tesseract OCR failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-
-    Ok(sanitize_ocr_output(
-        String::from_utf8_lossy(&output.stdout).to_string(),
-    ))
-}
-
-#[cfg(target_os = "windows")]
-fn recognize_text_from_file(_path: &Path) -> Result<String, String> {
-    Err("Windows OCR backend is not implemented yet.".into())
-}
-
-fn sanitize_ocr_output(text: String) -> String {
-    text.replace("\r\n", "\n")
-        .lines()
-        .map(str::trim_end)
-        .filter(|line| !line.trim().is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
-        .trim()
-        .to_string()
 }
 
 fn temp_path(prefix: &str, extension: &str) -> PathBuf {
