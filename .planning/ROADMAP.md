@@ -12,7 +12,7 @@ Replace three platform-specific OCR backends (Apple Vision Swift, Tesseract CLI,
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Ollama HTTP Module** - Build and test the new `ollama.rs` OCR module in isolation
+- [x] **Phase 1: Ollama HTTP Module** - Build and test the new `ollama.rs` OCR module in isolation (completed 2026-03-21)
 - [ ] **Phase 2: Platform Cleanup** - Remove all legacy OCR backends and dead code
 - [ ] **Phase 3: Command Wiring** - Connect Ollama OCR to `commit_selection` and validate end-to-end
 
@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md — Add `reqwest 0.12` and `serde_json 1` dependencies; create `ollama.rs` with `recognize_text` implementing all request guards, timeout, and error classification
+- [x] 01-01-PLAN.md — Add `reqwest 0.12` and `serde_json 1` dependencies; create `ollama.rs` with `recognize_text` implementing all request guards, timeout, and error classification
 
 ### Phase 2: Platform Cleanup
 **Goal**: All legacy OCR code is deleted; `platform.rs` contains only screenshot capture and `crop_png`
@@ -68,6 +68,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Ollama HTTP Module | 0/1 | Not started | - |
+| 1. Ollama HTTP Module | 1/1 | Complete   | 2026-03-21 |
 | 2. Platform Cleanup | 0/1 | Not started | - |
 | 3. Command Wiring | 0/1 | Not started | - |

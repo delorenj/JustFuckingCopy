@@ -9,13 +9,13 @@ Requirements for OCR backend migration to Ollama GLM-OCR.
 
 ### OCR Backend
 
-- [ ] **OCR-01**: OCR requests are sent via HTTP POST to Ollama `/api/generate` at `192.168.1.12:11434` with model `glm-ocr`
-- [ ] **OCR-02**: PNG image data is base64-encoded without data URL prefix (`data:image/png;base64,` stripped before sending)
-- [ ] **OCR-03**: Images exceeding 2048px in either dimension are resized proportionally before sending to Ollama
-- [ ] **OCR-04**: Every Ollama request includes `options.num_ctx: 16384` to prevent context truncation
-- [ ] **OCR-05**: Ollama requests use `stream: false` with a 60-second timeout
-- [ ] **OCR-06**: User sees a clear error message when Ollama is unreachable, returns an error, or the model is not loaded
-- [ ] **OCR-07**: OCR text returned from Ollama feeds into the existing merge/dedup pipeline identically to the old OCR backends
+- [x] **OCR-01**: OCR requests are sent via HTTP POST to Ollama `/api/generate` at `192.168.1.12:11434` with model `glm-ocr`
+- [x] **OCR-02**: PNG image data is base64-encoded without data URL prefix (`data:image/png;base64,` stripped before sending)
+- [x] **OCR-03**: Images exceeding 2048px in either dimension are resized proportionally before sending to Ollama
+- [x] **OCR-04**: Every Ollama request includes `options.num_ctx: 16384` to prevent context truncation
+- [x] **OCR-05**: Ollama requests use `stream: false` with a 60-second timeout
+- [x] **OCR-06**: User sees a clear error message when Ollama is unreachable, returns an error, or the model is not loaded
+- [x] **OCR-07**: OCR text returned from Ollama feeds into the existing merge/dedup pipeline identically to the old OCR backends
 
 ### Code Cleanup
 
@@ -23,7 +23,7 @@ Requirements for OCR backend migration to Ollama GLM-OCR.
 - [ ] **CLN-02**: Tesseract CLI integration code is removed from `platform.rs`
 - [ ] **CLN-03**: Windows OCR stub is removed from `platform.rs`
 - [ ] **CLN-04**: All `#[cfg(target_os)]` conditional compilation blocks for OCR are removed
-- [ ] **CLN-05**: New `ollama.rs` module contains all Ollama HTTP logic, independently testable
+- [x] **CLN-05**: New `ollama.rs` module contains all Ollama HTTP logic, independently testable
 
 ### Async Integration
 
@@ -60,18 +60,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OCR-01 | Phase 1 | Pending |
-| OCR-02 | Phase 1 | Pending |
-| OCR-03 | Phase 1 | Pending |
-| OCR-04 | Phase 1 | Pending |
-| OCR-05 | Phase 1 | Pending |
-| OCR-06 | Phase 1 | Pending |
-| OCR-07 | Phase 1 | Pending |
+| OCR-01 | Phase 1 | Complete |
+| OCR-02 | Phase 1 | Complete |
+| OCR-03 | Phase 1 | Complete |
+| OCR-04 | Phase 1 | Complete |
+| OCR-05 | Phase 1 | Complete |
+| OCR-06 | Phase 1 | Complete |
+| OCR-07 | Phase 1 | Complete |
 | CLN-01 | Phase 2 | Pending |
 | CLN-02 | Phase 2 | Pending |
 | CLN-03 | Phase 2 | Pending |
 | CLN-04 | Phase 2 | Pending |
-| CLN-05 | Phase 1 | Pending |
+| CLN-05 | Phase 1 | Complete |
 | ASY-01 | Phase 3 | Pending |
 | ASY-02 | Phase 3 | Pending |
 
