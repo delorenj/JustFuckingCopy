@@ -41,11 +41,11 @@ Plans:
   1. `src-tauri/scripts/vision_ocr.swift` no longer exists in the repository
   2. `platform.rs` contains no Tesseract, Apple Vision, or Windows OCR code
   3. No `#[cfg(target_os)]` conditional compilation blocks for OCR remain in any file
-  4. `cargo build` passes with no warnings about unused imports or dead code from removed backends
-**Plans**: TBD
+  4. `cargo build` fails with exactly one error: unresolved `recognize_text_from_png` at the `commit_selection` call site (intentional — Phase 3 wires it)
+**Plans**: 1 plan
 
 Plans:
-- [ ] 02-01: Delete `vision_ocr.swift`; remove Tesseract, Apple Vision, and Windows stub OCR code from `platform.rs`; remove all OCR-related `#[cfg(target_os)]` blocks
+- [ ] 02-01-PLAN.md — Delete `vision_ocr.swift`; remove Tesseract, Apple Vision, and Windows stub OCR code from `platform.rs`; remove `recognize_text_from_png` from `lib.rs` import
 
 ### Phase 3: Command Wiring
 **Goal**: The full pipeline works end-to-end — marquee selection triggers Ollama OCR and produces correct deduplicated clipboard text
