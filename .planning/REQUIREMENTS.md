@@ -27,8 +27,8 @@ Requirements for OCR backend migration to Ollama GLM-OCR.
 
 ### Async Integration
 
-- [ ] **ASY-01**: `commit_selection` Tauri command handler is async
-- [ ] **ASY-02**: State mutex is not held across `.await` boundaries (clone-before-await pattern)
+- [x] **ASY-01**: `commit_selection` Tauri command handler is async
+- [x] **ASY-02**: State mutex is not held across `.await` boundaries (clone-before-await pattern)
 
 ## v2 Requirements
 
@@ -72,8 +72,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLN-03 | Phase 2 | Complete |
 | CLN-04 | Phase 2 | Complete |
 | CLN-05 | Phase 1 | Complete |
-| ASY-01 | Phase 3 | Pending |
-| ASY-02 | Phase 3 | Pending |
+| ASY-01 | Phase 3 | Complete |
+| ASY-02 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 14 total
