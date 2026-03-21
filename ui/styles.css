@@ -219,6 +219,10 @@ h2 {
   font-family: var(--font-display);
 }
 
+.selection-placeholder[hidden] {
+  display: none;
+}
+
 #snapshot-canvas {
   display: block;
   width: 100%;
