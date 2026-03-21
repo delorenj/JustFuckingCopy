@@ -1,4 +1,5 @@
 mod merge;
+mod ollama;
 mod platform;
 mod state;
 
