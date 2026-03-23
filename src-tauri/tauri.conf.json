@@ -10,11 +10,14 @@
     "withGlobalTauri": true,
     "windows": [
       {
+        "create": false,
         "label": "main",
         "title": "JustFuckingCopy",
         "width": 1440,
         "height": 960,
-        "resizable": true
+        "resizable": true,
+        "visible": false,
+        "skipTaskbar": true
       }
     ],
     "security": {
@@ -25,4 +28,3 @@
     "active": false
   }
 }
-

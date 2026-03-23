@@ -341,9 +341,8 @@ fn get_batch_state(state: State<'_, BatchState>) -> Result<BatchStatePayload, St
 }
 
 #[tauri::command]
-async fn process_batch_now(app: tauri::AppHandle) -> Result<(), String> {
-    process_batch(app).await;
-    Ok(())
+async fn process_batch_now(app: tauri::AppHandle) -> Result<String, String> {
+    process_batch(app).await
 }
 
 #[tauri::command]
@@ -358,7 +357,7 @@ fn clear_batch(
     Ok(())
 }
 
-async fn process_batch(app: tauri::AppHandle) {
+async fn process_batch(app: tauri::AppHandle) -> Result<String, String> {
     // 1. Drain pending files from BatchState (lock acquired and released immediately)
     let pending: Vec<std::path::PathBuf> = {
         let batch_state = app.state::<BatchState>();
@@ -366,8 +365,7 @@ async fn process_batch(app: tauri::AppHandle) {
     };
 
     if pending.is_empty() {
-        eprintln!("[JFC] No pending files to process.");
-        return;
+        return Err("No pending screenshots to process.".into());
     }
 
     // 2. Sort by filesystem modification time (oldest first = natural capture order)
@@ -400,12 +398,13 @@ async fn process_batch(app: tauri::AppHandle) {
     // 4. OCR each file, merge results
     let mut merged_text = String::new();
     let mut archived: Vec<std::path::PathBuf> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
 
     for path in &sorted {
         let png_bytes = match std::fs::read(path) {
             Ok(b) => b,
             Err(e) => {
-                eprintln!("[JFC batch] Failed to read file {}: {e}", path.display());
+                errors.push(format!("{}: {e}", path.display()));
                 continue;
             }
         };
@@ -417,22 +416,40 @@ async fn process_batch(app: tauri::AppHandle) {
                 archived.push(path.clone());
             }
             Err(e) => {
-                eprintln!("[JFC batch] OCR failed for {}: {e}", path.display());
-                // skip this file; do not archive it
+                errors.push(format!("{}: {e}", path.display()));
             }
         }
     }
 
-    // 5. Copy merged text to clipboard (only if we got something)
-    if merged_text.trim().is_empty() {
-        eprintln!("[JFC batch] No text extracted from batch.");
-    } else {
-        if let Err(e) = app.clipboard().write_text(merged_text.clone()) {
-            eprintln!("[JFC batch] Failed to write to clipboard: {e}");
-        }
+    // 5. Store merged text in SharedState so the frontend can read it
+    if !merged_text.trim().is_empty() {
+        let shared: tauri::State<'_, SharedState> = app.state::<SharedState>();
+        let _ = shared.inner.lock().map(|mut guard| {
+            guard.merged_text = merged_text.clone();
+        });
     }
 
-    // 6. Archive successfully processed files
+    // 6. Copy merged text to clipboard
+    if merged_text.trim().is_empty() {
+        // Put failed files back into batch so user can retry
+        let batch_state = app.state::<BatchState>();
+        for path in &sorted {
+            if !archived.contains(path) {
+                batch_state.add_pending_file(path.clone());
+            }
+        }
+        return Err(format!(
+            "No text extracted from batch. {} file(s) failed: {}",
+            errors.len(),
+            errors.join("; ")
+        ));
+    }
+
+    app.clipboard()
+        .write_text(merged_text.clone())
+        .map_err(|e| format!("OCR succeeded but clipboard write failed: {e}"))?;
+
+    // 7. Archive successfully processed files
     for path in &archived {
         if let Some(filename) = path.file_name() {
             let dest = archive_dir.join(filename);
@@ -442,9 +459,16 @@ async fn process_batch(app: tauri::AppHandle) {
         }
     }
 
-    // 7. Reset tray tooltip
+    // 8. Reset tray tooltip
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some("JustFuckingCopy"));
+    }
+
+    if errors.is_empty() {
+        Ok(merged_text)
+    } else {
+        // Partial success: some files failed but we got text from others
+        Ok(merged_text)
     }
 }
 
@@ -497,7 +521,9 @@ pub fn run() {
                 if event.state == ShortcutState::Pressed {
                     let handle = app_handle_for_shortcut.clone();
                     tauri::async_runtime::spawn(async move {
-                        process_batch(handle).await;
+                        if let Err(e) = process_batch(handle).await {
+                            eprintln!("[JFC hotkey] Batch processing failed: {e}");
+                        }
                     });
                 }
             },
