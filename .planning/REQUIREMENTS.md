@@ -1,11 +1,11 @@
 # Requirements: JustFuckingCopy
 
 **Defined:** 2026-03-20
-**Core Value:** Capture visible text from any screen region and get clean, deduplicated clipboard content in as few clicks as possible.
+**Core Value:** Capture visible text from any screen region and get clean, deduplicated clipboard content with zero workflow interruption.
 
 ## v1 Requirements
 
-Requirements for OCR backend migration to Ollama GLM-OCR.
+Requirements for the shipped Ollama GLM-OCR migration milestone.
 
 ### OCR Backend
 
@@ -32,31 +32,62 @@ Requirements for OCR backend migration to Ollama GLM-OCR.
 
 ## v2 Requirements
 
-Deferred to future release. Tracked but not in current roadmap.
+Requirements for the in-progress ambient tray milestone.
+
+### Tray Lifecycle
+
+- [ ] **TRAY-01**: App launches without showing a main window and remains reachable from the system tray
+- [ ] **TRAY-02**: User can reveal and hide the status panel from tray affordances without restarting the app
+- [ ] **TRAY-03**: Closing the status panel hides it and keeps the background process alive
 
 ### Configuration
 
-- **CFG-01**: Ollama endpoint is configurable via environment variable or config file
-- **CFG-02**: OCR model name is configurable (swap GLM-OCR for other vision models)
+- [x] **CFG-01**: App loads configuration from the platform-correct config directory and writes defaults when missing
+- [x] **CFG-02**: Config exposes the watched screenshot directory
+- [x] **CFG-03**: Config exposes the global hotkey
+- [x] **CFG-04**: Config exposes the Ollama endpoint
+
+### Batch Intake
+
+- [ ] **BAT-01**: Directory watcher detects new PNG/JPEG screenshots in the watched directory with debounce
+- [ ] **BAT-02**: Pending screenshot count is tracked in state and surfaced through the tray affordance
+
+### Batch Processing
+
+- [ ] **HOT-01**: Global hotkey triggers batch OCR, fuzzy merge, and clipboard copy
+- [ ] **BAT-03**: Pending screenshots are processed in filesystem modification-time order
+- [ ] **BAT-04**: Processed screenshots are archived and removed from the pending batch after a successful run
+
+### Status Panel
+
+- [ ] **UI-01**: Status panel shows pending screenshots and the last merged-text preview
+- [ ] **UI-02**: Status panel exposes explicit `Process Now` and `Clear Batch` actions
+
+## Future Requirements
+
+Tracked but deferred beyond v2.0.
 
 ### Quality
 
-- **QUA-01**: Prompt tuning for different content types (code vs prose vs mixed)
-- **QUA-02**: Connection health check on app startup with status indicator
+- [ ] **QUA-01**: Prompt tuning for different content types (code vs prose vs mixed)
+- [ ] **QUA-02**: Connection health check on app startup with status indicator
+- [ ] **CFG-05**: OCR model name is configurable (swap GLM-OCR for other vision models)
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
 | Fallback to local OCR | User explicitly chose hard fail over degraded experience |
-| Configurable endpoint | Hardcoded for simplicity; only one Ollama instance exists |
-| Streaming OCR responses | No UX benefit to partial text; adds complexity |
-| Screenshot capture changes | Only OCR changes; capture backends stay platform-specific |
+| Settings GUI window | Deferred to v2.1+; TOML config keeps v2.0 scope tight |
+| Clipboard history | Separate product scope from the ambient batch workflow |
+| Windows support | Linux/macOS only for the current milestone |
 | App bundling/distribution | Dev mode only (`bundle.active = false`) |
+| In-app screenshot capture | v2.0 depends on external screenshot tools and a watched directory |
+| Marquee selection in tray mode | Full screenshots plus dedup replace manual crop workflow in v2.0 |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases cover which requirements. Updated during roadmap creation and phase completion.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -74,12 +105,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLN-05 | Phase 1 | Complete |
 | ASY-01 | Phase 3 | Complete |
 | ASY-02 | Phase 3 | Complete |
+| TRAY-01 | Phase 4 | Complete |
+| TRAY-02 | Phase 4 | Complete |
+| TRAY-03 | Phase 4 | Complete |
+| CFG-01 | Phase 5 | Planned |
+| CFG-02 | Phase 5 | Planned |
+| CFG-03 | Phase 5 | Planned |
+| CFG-04 | Phase 5 | Planned |
+| BAT-01 | Phase 6 | Planned |
+| BAT-02 | Phase 6 | Planned |
+| HOT-01 | Phase 7 | Planned |
+| BAT-03 | Phase 7 | Planned |
+| BAT-04 | Phase 7 | Planned |
+| UI-01 | Phase 8 | Planned |
+| UI-02 | Phase 8 | Planned |
 
 **Coverage:**
-- v1 requirements: 14 total
-- Mapped to phases: 14
-- Unmapped: 0
+- v1 requirements: 14 total, 14 complete
+- v2 requirements: 12 total, 3 complete, 9 planned
+- Future requirements: 3 deferred
 
 ---
 *Requirements defined: 2026-03-20*
-*Last updated: 2026-03-21 after roadmap creation*
+*Last updated: 2026-03-23 for v2.0 roadmap planning*

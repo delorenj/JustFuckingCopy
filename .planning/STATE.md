@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ambient Tray
-status: defining_requirements
-stopped_at: Milestone v2.0 started
-last_updated: "2026-03-21T12:00:00.000Z"
+status: unknown
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-23T07:15:45.274Z"
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 5
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
 ---
 
 # Project State
@@ -19,20 +19,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Capture visible text from any screen region and get clean, deduplicated clipboard content with zero workflow interruption.
-**Current focus:** Defining requirements for v2.0 Ambient Tray
+**Current focus:** Phase 05 — toml-config
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-21 — Milestone v2.0 started
+Phase: 05 (toml-config) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 4
 - Average duration: -
 - Total execution time: -
 
@@ -40,14 +38,18 @@ Last activity: 2026-03-21 — Milestone v2.0 started
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 1 | 1 | - | - |
+| 2 | 1 | - | - |
+| 3 | 1 | - | - |
+| 4 | 1 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 01-01, 02-01, 03-01, 04-01
+- Trend: v1.0 shipped; v2.0 execution has started cleanly
 
 *Updated after each plan completion*
+| Phase 05 P01 | 3m 1s | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -61,11 +63,15 @@ Recent decisions affecting current work:
 - [v1.0] Hard fail on unreachable: no degraded experience; clear error over silent failure
 - [v1.0] Delete old OCR code: clean codebase, no dead code or feature flags
 - [v1.0] reqwest with rustls-tls (not native-tls): avoids OpenSSL link complexity on Linux
-- [v1.0] tokio as dev-dep only: Tauri owns runtime; dev-dep provides #[tokio::test] without conflicts
+- [v1.0] tokio as dev-dep only: Tauri owns runtime; dev-dep provides `#[tokio::test]` without conflicts
 - [v2.0] Ambient tray over modal window: eliminates friction of window blocking screenshots
 - [v2.0] Archive + clear batch lifecycle: preserves history, auto-resets for next batch
 - [v2.0] Config.toml over settings GUI: tight scope for v2.0, GUI deferred to v2.1+
 - [v2.0] Full screenshots over marquee crop: dedup handles overlap, no precise selection needed
+- [v2.0] Linux tray click events are unavailable in Tauri 2.10.3: provide tray-menu fallback instead of relying on click-only behavior
+- [v2.0] Reuse the existing v1 panel during Phase 4: UI redesign waits until the dedicated status-panel phase
+- [Phase 05]: AtomicU64 counter for unique test temp paths prevents parallel test race conditions
+- [Phase 05]: AppConfig wired as Tauri managed state; downstream phases 06/07 can access via State<'_, AppConfig>
 
 ### Pending Todos
 
@@ -73,13 +79,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- Tauri 2 system tray plugin compatibility and API surface needs research
-- Global hotkey registration approach (Tauri plugin vs native) needs research
-- File watcher library selection (notify crate vs alternatives) needs research
-- Watch directory must handle rapid successive writes from screenshot tools
+- Config bootstrap for `watch_dir`, `hotkey`, and `ollama_endpoint` is the next dependency for watcher/hotkey phases
+- Linux tray visibility still depends on system AppIndicator support at runtime
+- Future phases must replace the marquee-focused UI without regressing the working OCR backend
 
 ## Session Continuity
 
-Last session: 2026-03-21
-Stopped at: Milestone v2.0 started
+Last session: 2026-03-23T07:15:45.272Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None
