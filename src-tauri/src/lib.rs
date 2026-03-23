@@ -18,6 +18,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::platform::{capture_snapshot as platform_capture_snapshot, crop_png};
 use crate::state::{AppStatePayload, SelectionRect, SharedState, SnapshotPayload};
+use crate::watcher::{start_watcher, BatchState};
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const TOGGLE_STATUS_PANEL_MENU_ID: &str = "tray-toggle-status-panel";
@@ -316,6 +317,28 @@ fn copy_merged_text(
     Ok(merged_text)
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BatchStatePayload {
+    pending_count: usize,
+    pending_files: Vec<String>,
+}
+
+#[tauri::command]
+fn get_batch_state(state: State<'_, BatchState>) -> Result<BatchStatePayload, String> {
+    let guard = state
+        .inner
+        .lock()
+        .map_err(|_| "Batch state lock was poisoned.".to_string())?;
+    Ok(BatchStatePayload {
+        pending_count: guard.len(),
+        pending_files: guard
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_config = config::load_or_create();
@@ -325,6 +348,7 @@ pub fn run() {
         .manage(SharedState::default())
         .manage(LifecycleState::default())
         .manage(app_config)
+        .manage(BatchState::default())
         .setup(|app| setup_tray(app))
         .invoke_handler(tauri::generate_handler![
             get_app_state,
@@ -332,10 +356,21 @@ pub fn run() {
             capture_snapshot,
             commit_selection,
             undo_last_segment,
-            copy_merged_text
+            copy_merged_text,
+            get_batch_state
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
+
+    // Start filesystem watcher for batch intake
+    {
+        let config = app.state::<crate::config::AppConfig>();
+        let watch_dir = config.watch_dir.clone();
+        let app_handle = app.handle().clone();
+        if let Err(e) = start_watcher(&watch_dir, app_handle) {
+            eprintln!("[JFC watcher] Failed to start watcher: {e}");
+        }
+    }
 
     app.run(|app, event| {
         if let RunEvent::ExitRequested { api, .. } = event {
