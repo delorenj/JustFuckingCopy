@@ -15,6 +15,7 @@ use tauri::{
     AppHandle, Manager, RunEvent, State, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 use crate::platform::{capture_snapshot as platform_capture_snapshot, crop_png};
 use crate::state::{AppStatePayload, SelectionRect, SharedState, SnapshotPayload};
@@ -339,12 +340,103 @@ fn get_batch_state(state: State<'_, BatchState>) -> Result<BatchStatePayload, St
     })
 }
 
+async fn process_batch(app: tauri::AppHandle) {
+    // 1. Drain pending files from BatchState (lock acquired and released immediately)
+    let pending: Vec<std::path::PathBuf> = {
+        let batch_state = app.state::<BatchState>();
+        batch_state.drain_pending()
+    };
+
+    if pending.is_empty() {
+        eprintln!("[JFC] No pending files to process.");
+        return;
+    }
+
+    // 2. Sort by filesystem modification time (oldest first = natural capture order)
+    let mut sorted = pending;
+    sorted.sort_by_key(|p| {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+    });
+
+    // 3. Prepare archive directory from config
+    let watch_dir = {
+        let config = app.state::<crate::config::AppConfig>();
+        config.watch_dir.clone()
+    };
+    let expanded_watch_dir = if watch_dir.starts_with("~/") || watch_dir == "~" {
+        if let Some(home) = dirs::home_dir() {
+            watch_dir.replacen('~', &home.to_string_lossy(), 1)
+        } else {
+            watch_dir.clone()
+        }
+    } else {
+        watch_dir.clone()
+    };
+    let archive_dir = std::path::PathBuf::from(&expanded_watch_dir).join("archive");
+    if let Err(e) = std::fs::create_dir_all(&archive_dir) {
+        eprintln!("[JFC batch] Failed to create archive directory: {e}");
+    }
+
+    // 4. OCR each file, merge results
+    let mut merged_text = String::new();
+    let mut archived: Vec<std::path::PathBuf> = Vec::new();
+
+    for path in &sorted {
+        let png_bytes = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("[JFC batch] Failed to read file {}: {e}", path.display());
+                continue;
+            }
+        };
+
+        match crate::ollama::recognize_text(&png_bytes).await {
+            Ok(text) => {
+                let outcome = crate::merge::append_text(&merged_text, &text);
+                merged_text = outcome.merged_text;
+                archived.push(path.clone());
+            }
+            Err(e) => {
+                eprintln!("[JFC batch] OCR failed for {}: {e}", path.display());
+                // skip this file; do not archive it
+            }
+        }
+    }
+
+    // 5. Copy merged text to clipboard (only if we got something)
+    if merged_text.trim().is_empty() {
+        eprintln!("[JFC batch] No text extracted from batch.");
+    } else {
+        if let Err(e) = app.clipboard().write_text(merged_text.clone()) {
+            eprintln!("[JFC batch] Failed to write to clipboard: {e}");
+        }
+    }
+
+    // 6. Archive successfully processed files
+    for path in &archived {
+        if let Some(filename) = path.file_name() {
+            let dest = archive_dir.join(filename);
+            if let Err(e) = std::fs::rename(path, &dest) {
+                eprintln!("[JFC batch] Failed to archive {}: {e}", path.display());
+            }
+        }
+    }
+
+    // 7. Reset tray tooltip
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_tooltip(Some("JustFuckingCopy"));
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_config = config::load_or_create();
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(SharedState::default())
         .manage(LifecycleState::default())
         .manage(app_config)
@@ -369,6 +461,28 @@ pub fn run() {
         let app_handle = app.handle().clone();
         if let Err(e) = start_watcher(&watch_dir, app_handle) {
             eprintln!("[JFC watcher] Failed to start watcher: {e}");
+        }
+    }
+
+    // Register global hotkey for batch processing
+    {
+        let hotkey_str = {
+            let config = app.state::<crate::config::AppConfig>();
+            config.hotkey.clone()
+        };
+        let app_handle_for_shortcut = app.handle().clone();
+        if let Err(e) = app.global_shortcut().on_shortcut(
+            hotkey_str.as_str(),
+            move |_app_handle, _shortcut, event| {
+                if event.state == ShortcutState::Pressed {
+                    let handle = app_handle_for_shortcut.clone();
+                    tauri::async_runtime::spawn(async move {
+                        process_batch(handle).await;
+                    });
+                }
+            },
+        ) {
+            eprintln!("[JFC hotkey] Failed to register hotkey '{hotkey_str}': {e}");
         }
     }
 
