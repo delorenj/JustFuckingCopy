@@ -99,7 +99,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 07-01-PLAN.md — Add `tauri-plugin-global-shortcut`, implement `process_batch` async fn (drain→sort-by-mtime→OCR→merge→clipboard→archive), register hotkey from config via `GlobalShortcutExt::on_shortcut` with async spawn
+- [x] 07-01-PLAN.md — Add `tauri-plugin-global-shortcut`, implement `process_batch` async fn (drain→sort-by-mtime→OCR→merge→clipboard→archive), register hotkey from config via `GlobalShortcutExt::on_shortcut` with async spawn
 
 #### Phase 8: Status Panel UI
 **Goal**: The panel reflects the tray workflow instead of the old marquee workflow
@@ -127,7 +127,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 4. System Tray + App Lifecycle Foundation | v2.0 | 1/1 | Complete | 2026-03-23 |
 | 5. TOML Config | v2.0 | 1/1 | Complete | 2026-03-23 |
 | 6. Directory Watcher + Batch State + Badge | v2.0 | 1/1 | Complete | 2026-03-23 |
-| 7. Global Hotkey + Batch OCR Pipeline | v2.0 | 0/1 | Planned | - |
+| 7. Global Hotkey + Batch OCR Pipeline | v2.0 | 1/1 | Complete   | 2026-03-23 |
 | 8. Status Panel UI | v2.0 | 0/1 | Not started | - |
 
 ---

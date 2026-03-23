@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ambient Tray
 status: unknown
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-23T07:24:10.518Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-23T07:33:20.382Z"
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Capture visible text from any screen region and get clean, deduplicated clipboard content with zero workflow interruption.
-**Current focus:** Phase 06 — directory-watcher-batch-state-badge
+**Current focus:** Phase 07 — global-hotkey-batch-ocr-pipeline
 
 ## Current Position
 
-Phase: 7
-Plan: Not started
+Phase: 07 (global-hotkey-batch-ocr-pipeline) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Plan: Not started
 *Updated after each plan completion*
 | Phase 05 P01 | 3m 1s | 2 tasks | 3 files |
 | Phase 06 P01 | 2m 28s | 2 tasks | 3 files |
+| Phase 07 P01 | 92s | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,8 @@ Recent decisions affecting current work:
 - [Phase 05]: AppConfig wired as Tauri managed state; downstream phases 06/07 can access via State<'_, AppConfig>
 - [Phase 06]: Use notify::recommended_watcher directly (no extra dep) with EventKind::Create + RenameMode::To filtering
 - [Phase 06]: Non-existent watch_dir logs warning and returns Ok (no app crash on startup)
+- [Phase 07]: Global shortcut registered after app.build() using GlobalShortcutExt::on_shortcut (not in .setup()) to satisfy Tauri 2 plugin init ordering
+- [Phase 07]: Only successfully OCR'd files are archived; failed files remain in watch_dir for retry
 
 ### Pending Todos
 
@@ -88,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T07:23:42.729Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-03-23T07:33:20.381Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None

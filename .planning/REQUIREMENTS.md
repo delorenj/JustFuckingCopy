@@ -54,9 +54,9 @@ Requirements for the in-progress ambient tray milestone.
 
 ### Batch Processing
 
-- [ ] **HOT-01**: Global hotkey triggers batch OCR, fuzzy merge, and clipboard copy
-- [ ] **BAT-03**: Pending screenshots are processed in filesystem modification-time order
-- [ ] **BAT-04**: Processed screenshots are archived and removed from the pending batch after a successful run
+- [x] **HOT-01**: Global hotkey triggers batch OCR, fuzzy merge, and clipboard copy
+- [x] **BAT-03**: Pending screenshots are processed in filesystem modification-time order
+- [x] **BAT-04**: Processed screenshots are archived and removed from the pending batch after a successful run
 
 ### Status Panel
 
