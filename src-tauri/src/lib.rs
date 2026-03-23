@@ -1,22 +1,188 @@
+mod config;
 mod merge;
 mod ollama;
 mod platform;
 mod state;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use tauri::{State, WebviewWindow};
+use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{
+    AppHandle, Manager, RunEvent, State, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::platform::{capture_snapshot as platform_capture_snapshot, crop_png};
 use crate::state::{AppStatePayload, SelectionRect, SharedState, SnapshotPayload};
+
+const MAIN_WINDOW_LABEL: &str = "main";
+const TOGGLE_STATUS_PANEL_MENU_ID: &str = "tray-toggle-status-panel";
+const QUIT_APP_MENU_ID: &str = "tray-quit-app";
+const TRAY_TOOLTIP: &str = "JustFuckingCopy";
+const TRAY_ICON: tauri::image::Image<'_> = tauri::include_image!("./icons/icon.png");
+
+#[derive(Default)]
+struct LifecycleState {
+    allow_exit: AtomicBool,
+}
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CommitSelectionRequest {
     snapshot_id: u64,
     selection: SelectionRect,
+}
+
+fn ensure_status_panel(app: &AppHandle) -> Result<WebviewWindow, String> {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        return Ok(window);
+    }
+
+    let window_config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == MAIN_WINDOW_LABEL)
+        .ok_or_else(|| format!("Missing `{MAIN_WINDOW_LABEL}` window configuration."))?;
+
+    let window = WebviewWindowBuilder::from_config(app, window_config)
+        .map_err(|error| format!("Failed to prepare status panel window: {error}"))?
+        .build()
+        .map_err(|error| format!("Failed to build status panel window: {error}"))?;
+
+    attach_status_panel_handlers(&window);
+
+    Ok(window)
+}
+
+fn attach_status_panel_handlers(window: &WebviewWindow) {
+    let panel = window.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = panel.hide();
+        }
+    });
+}
+
+fn show_status_panel(app: &AppHandle) -> Result<(), String> {
+    let window = ensure_status_panel(app)?;
+    window
+        .show()
+        .map_err(|error| format!("Failed to show status panel: {error}"))?;
+    window
+        .set_focus()
+        .map_err(|error| format!("Failed to focus status panel: {error}"))?;
+    Ok(())
+}
+
+fn hide_status_panel(app: &AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        window
+            .hide()
+            .map_err(|error| format!("Failed to hide status panel: {error}"))?;
+    }
+
+    Ok(())
+}
+
+fn toggle_status_panel(app: &AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        if window
+            .is_visible()
+            .map_err(|error| format!("Failed to inspect status panel visibility: {error}"))?
+        {
+            hide_status_panel(app)?;
+        } else {
+            show_status_panel(app)?;
+        }
+    } else {
+        show_status_panel(app)?;
+    }
+
+    Ok(())
+}
+
+fn request_app_exit(app: &AppHandle) {
+    app.state::<LifecycleState>()
+        .allow_exit
+        .store(true, Ordering::SeqCst);
+    app.exit(0);
+}
+
+fn handle_tray_menu_event(app: &AppHandle, event: MenuEvent) {
+    if event.id == TOGGLE_STATUS_PANEL_MENU_ID {
+        if let Err(error) = toggle_status_panel(app) {
+            eprintln!("Failed to toggle status panel from tray menu: {error}");
+        }
+    } else if event.id == QUIT_APP_MENU_ID {
+        request_app_exit(app);
+    }
+}
+
+fn handle_tray_icon_event(app: &AppHandle, event: TrayIconEvent) {
+    if let TrayIconEvent::Click {
+        button: MouseButton::Left,
+        button_state: MouseButtonState::Up,
+        ..
+    } = event
+    {
+        if let Err(error) = toggle_status_panel(app) {
+            eprintln!("Failed to toggle status panel from tray click: {error}");
+        }
+    }
+}
+
+fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_os = "macos")]
+    {
+        app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        app.set_dock_visibility(false);
+    }
+
+    let toggle_item = MenuItem::with_id(
+        app,
+        TOGGLE_STATUS_PANEL_MENU_ID,
+        "Toggle Status Panel",
+        true,
+        None::<&str>,
+    )?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let quit_item = MenuItem::with_id(
+        app,
+        QUIT_APP_MENU_ID,
+        "Quit JustFuckingCopy",
+        true,
+        None::<&str>,
+    )?;
+    let tray_menu = Menu::with_items(app, &[&toggle_item, &separator, &quit_item])?;
+
+    TrayIconBuilder::with_id(MAIN_WINDOW_LABEL)
+        .icon(TRAY_ICON)
+        .tooltip(TRAY_TOOLTIP)
+        .icon_as_template(true)
+        .menu(&tray_menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(handle_tray_menu_event)
+        .on_tray_icon_event(|tray, event| handle_tray_icon_event(tray.app_handle(), event))
+        .build(app)
+        .map_err(|error| {
+            let message = if cfg!(target_os = "linux") {
+                format!(
+                    "Failed to initialize the tray icon. On Linux, ensure an AppIndicator-compatible library is installed: {error}"
+                )
+            } else {
+                format!("Failed to initialize the tray icon: {error}")
+            };
+
+            std::io::Error::other(message)
+        })?;
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -151,9 +317,14 @@ fn copy_merged_text(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app_config = config::load_or_create();
+
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(SharedState::default())
+        .manage(LifecycleState::default())
+        .manage(app_config)
+        .setup(|app| setup_tray(app))
         .invoke_handler(tauri::generate_handler![
             get_app_state,
             reset_session,
@@ -162,6 +333,15 @@ pub fn run() {
             undo_last_segment,
             copy_merged_text
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app, event| {
+        if let RunEvent::ExitRequested { api, .. } = event {
+            let lifecycle_state = app.state::<LifecycleState>();
+            if !lifecycle_state.allow_exit.load(Ordering::SeqCst) {
+                api.prevent_exit();
+            }
+        }
+    });
 }
