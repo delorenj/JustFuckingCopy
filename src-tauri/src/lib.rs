@@ -3,6 +3,7 @@ mod merge;
 mod ollama;
 mod platform;
 mod state;
+mod watcher;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
