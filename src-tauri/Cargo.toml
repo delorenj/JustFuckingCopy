@@ -16,6 +16,8 @@ tauri-build = { version = "2", features = [] }
 base64 = "0.22"
 dirs = "5"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+imageproc = "0.25"
+ab_glyph = "0.2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 notify = { version = "6", features = ["macos_fsevent"] }

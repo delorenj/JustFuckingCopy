@@ -3,6 +3,7 @@ mod merge;
 mod ollama;
 mod platform;
 mod state;
+mod tray_badge;
 mod watcher;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -354,6 +355,7 @@ fn clear_batch(
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(TRAY_TOOLTIP));
     }
+    tray_badge::update_tray_icon(&app, 0);
     Ok(())
 }
 
@@ -438,6 +440,12 @@ async fn process_batch(app: tauri::AppHandle) -> Result<String, String> {
                 batch_state.add_pending_file(path.clone());
             }
         }
+        // Update badge to reflect files returned to pending
+        let remaining = batch_state.pending_count();
+        tray_badge::update_tray_icon(&app, remaining);
+        if let Some(tray) = app.tray_by_id("main") {
+            let _ = tray.set_tooltip(Some(&format!("JustFuckingCopy ({remaining} pending)")));
+        }
         return Err(format!(
             "No text extracted from batch. {} file(s) failed: {}",
             errors.len(),
@@ -459,10 +467,16 @@ async fn process_batch(app: tauri::AppHandle) -> Result<String, String> {
         }
     }
 
-    // 8. Reset tray tooltip
+    // 8. Reset tray tooltip and badge
+    let remaining = app.state::<BatchState>().pending_count();
     if let Some(tray) = app.tray_by_id("main") {
-        let _ = tray.set_tooltip(Some("JustFuckingCopy"));
+        if remaining == 0 {
+            let _ = tray.set_tooltip(Some("JustFuckingCopy"));
+        } else {
+            let _ = tray.set_tooltip(Some(&format!("JustFuckingCopy ({remaining} pending)")));
+        }
     }
+    tray_badge::update_tray_icon(&app, remaining);
 
     if errors.is_empty() {
         Ok(merged_text)

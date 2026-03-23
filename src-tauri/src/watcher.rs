@@ -105,6 +105,7 @@ pub fn start_watcher(watch_dir: &str, app_handle: AppHandle) -> Result<(), Strin
                 if let Some(tray) = app_handle_clone.tray_by_id("main") {
                     let _ = tray.set_tooltip(Some(&tooltip));
                 }
+                crate::tray_badge::update_tray_icon(&app_handle_clone, count);
             }
         }
     })
