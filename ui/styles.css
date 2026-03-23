@@ -328,3 +328,24 @@ h2 {
   }
 }
 
+/* Status panel layout — Phase 8 additions */
+
+.status-workspace {
+  grid-template-columns: 0.8fr 1.2fr;
+}
+
+.pending-file-card {
+  padding: 12px 16px;
+}
+
+.pending-badge {
+  background: rgba(43, 65, 217, 0.12);
+  color: #23308f;
+}
+
+@media (max-width: 1100px) {
+  .status-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+

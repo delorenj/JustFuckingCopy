@@ -2,39 +2,30 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>JustFuckingCopy</title>
     <link rel="stylesheet" href="./styles.css" />
     <script type="module" src="./app.js"></script>
   </head>
   <body>
     <div class="app-shell">
+
       <section class="hero-card">
-        <p class="eyebrow">Pixel-First Clipboard</p>
-        <h1>If you can see it, you can copy it.</h1>
-        <p class="lede">
-          Capture the display, drag a marquee around the text you want, and let
-          the app OCR, dedupe, and merge the result into one clipboard-ready
-          stream.
-        </p>
+        <p class="eyebrow">Ambient Tray</p>
+        <h1>JustFuckingCopy</h1>
 
         <div class="action-row">
-          <button id="capture-button" class="primary-button">Capture Snapshot</button>
-          <button id="copy-button" class="secondary-button">Copy Merged Text</button>
-          <button id="undo-button" class="ghost-button">Undo Last Segment</button>
-          <button id="reset-button" class="ghost-button">Reset Session</button>
+          <button id="process-now-button" class="primary-button">Process Now</button>
+          <button id="clear-batch-button" class="ghost-button">Clear Batch</button>
         </div>
 
         <div class="status-row">
           <div class="status-pill">
-            <span class="status-label">Snapshot</span>
-            <strong id="snapshot-status">None yet</strong>
+            <span class="status-label">Pending</span>
+            <strong id="pending-count">0</strong>
           </div>
           <div class="status-pill">
-            <span class="status-label">Segments</span>
+            <span class="status-label">Processed</span>
             <strong id="segment-count">0</strong>
           </div>
           <div class="status-pill">
@@ -44,31 +35,17 @@
         </div>
       </section>
 
-      <section class="workspace-grid">
-        <article class="panel selection-panel">
+      <section class="workspace-grid status-workspace">
+
+        <article class="panel pending-panel">
           <div class="panel-header">
             <div>
-              <p class="panel-kicker">Selection</p>
-              <h2>Marquee the text you want</h2>
-            </div>
-            <div class="panel-actions">
-              <button id="clear-selection-button" class="ghost-button small">Clear Box</button>
-              <button id="commit-selection-button" class="primary-button small" disabled>
-                Commit Selection
-              </button>
+              <p class="panel-kicker">Batch Queue</p>
+              <h2>Pending screenshots</h2>
             </div>
           </div>
-
-          <p class="panel-copy">
-            Each new crop can overlap the previous one. Matching leading lines
-            are trimmed automatically before the text is merged.
-          </p>
-
-          <div id="selection-stage" class="selection-stage empty">
-            <div id="selection-placeholder" class="selection-placeholder">
-              <p>Capture a snapshot to start.</p>
-            </div>
-            <canvas id="snapshot-canvas"></canvas>
+          <div id="pending-list" class="segment-list">
+            <p class="empty-state">No screenshots pending.</p>
           </div>
         </article>
 
@@ -79,21 +56,22 @@
               <h2>Clipboard-bound text</h2>
             </div>
           </div>
-
           <textarea
             id="merged-output"
             class="merged-output"
             spellcheck="false"
             readonly
+            placeholder="Process a batch to see merged text here."
           ></textarea>
         </article>
+
       </section>
 
       <section class="panel segment-panel">
         <div class="panel-header">
           <div>
             <p class="panel-kicker">Session Timeline</p>
-            <h2>Captured slices</h2>
+            <h2>Processed batches</h2>
           </div>
         </div>
         <div id="segment-list" class="segment-list">
@@ -105,4 +83,3 @@
     </div>
   </body>
 </html>
-
