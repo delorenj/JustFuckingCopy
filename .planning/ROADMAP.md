@@ -112,7 +112,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 08-01-PLAN.md — Replace the marquee-centric UI with the status panel workflow and wire new backend events/commands
+- [ ] 08-01-PLAN.md — Add BatchState::clear(), expose process_batch_now + clear_batch commands, replace marquee UI with status dashboard (pending list, merged output, Process Now, Clear Batch)
 
 ## Progress
 
