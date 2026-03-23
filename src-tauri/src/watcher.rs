@@ -49,6 +49,11 @@ impl BatchState {
         let mut guard = self.inner.lock().expect("BatchState lock poisoned");
         guard.drain(..).collect()
     }
+
+    /// Clears all pending files without returning them.
+    pub fn clear(&self) {
+        self.inner.lock().expect("BatchState lock poisoned").clear();
+    }
 }
 
 /// Starts a filesystem watcher on `watch_dir`, adding new PNG/JPEG files to BatchState

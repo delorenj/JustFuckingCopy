@@ -340,6 +340,24 @@ fn get_batch_state(state: State<'_, BatchState>) -> Result<BatchStatePayload, St
     })
 }
 
+#[tauri::command]
+async fn process_batch_now(app: tauri::AppHandle) -> Result<(), String> {
+    process_batch(app).await;
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_batch(
+    app: tauri::AppHandle,
+    state: State<'_, BatchState>,
+) -> Result<(), String> {
+    state.clear();
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_tooltip(Some(TRAY_TOOLTIP));
+    }
+    Ok(())
+}
+
 async fn process_batch(app: tauri::AppHandle) {
     // 1. Drain pending files from BatchState (lock acquired and released immediately)
     let pending: Vec<std::path::PathBuf> = {
@@ -449,7 +467,9 @@ pub fn run() {
             commit_selection,
             undo_last_segment,
             copy_merged_text,
-            get_batch_state
+            get_batch_state,
+            process_batch_now,
+            clear_batch
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
