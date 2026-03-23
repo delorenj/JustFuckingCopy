@@ -49,8 +49,8 @@ Requirements for the in-progress ambient tray milestone.
 
 ### Batch Intake
 
-- [ ] **BAT-01**: Directory watcher detects new PNG/JPEG screenshots in the watched directory with debounce
-- [ ] **BAT-02**: Pending screenshot count is tracked in state and surfaced through the tray affordance
+- [x] **BAT-01**: Directory watcher detects new PNG/JPEG screenshots in the watched directory with debounce
+- [x] **BAT-02**: Pending screenshot count is tracked in state and surfaced through the tray affordance
 
 ### Batch Processing
 

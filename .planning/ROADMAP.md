@@ -85,7 +85,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 06-01-PLAN.md — Add watcher module, extend app state for pending files, and wire tray count updates
+- [x] 06-01-PLAN.md — Add watcher module, extend app state for pending files, and wire tray count updates
 
 #### Phase 7: Global Hotkey + Batch OCR Pipeline
 **Goal**: A single hotkey processes the current screenshot batch into deduplicated clipboard text

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ambient Tray
 status: unknown
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-23T07:17:06.712Z"
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-03-23T07:23:42.730Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Capture visible text from any screen region and get clean, deduplicated clipboard content with zero workflow interruption.
-**Current focus:** Phase 05 — toml-config
+**Current focus:** Phase 06 — directory-watcher-batch-state-badge
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
+Phase: 06 (directory-watcher-batch-state-badge) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Plan: Not started
 
 *Updated after each plan completion*
 | Phase 05 P01 | 3m 1s | 2 tasks | 3 files |
+| Phase 06 P01 | 2m 28s | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting current work:
 - [v2.0] Reuse the existing v1 panel during Phase 4: UI redesign waits until the dedicated status-panel phase
 - [Phase 05]: AtomicU64 counter for unique test temp paths prevents parallel test race conditions
 - [Phase 05]: AppConfig wired as Tauri managed state; downstream phases 06/07 can access via State<'_, AppConfig>
+- [Phase 06]: Use notify::recommended_watcher directly (no extra dep) with EventKind::Create + RenameMode::To filtering
+- [Phase 06]: Non-existent watch_dir logs warning and returns Ok (no app crash on startup)
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T07:15:45.272Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-23T07:23:42.729Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
