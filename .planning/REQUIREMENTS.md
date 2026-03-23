@@ -60,8 +60,8 @@ Requirements for the in-progress ambient tray milestone.
 
 ### Status Panel
 
-- [ ] **UI-01**: Status panel shows pending screenshots and the last merged-text preview
-- [ ] **UI-02**: Status panel exposes explicit `Process Now` and `Clear Batch` actions
+- [x] **UI-01**: Status panel shows pending screenshots and the last merged-text preview
+- [x] **UI-02**: Status panel exposes explicit `Process Now` and `Clear Batch` actions
 
 ## Future Requirements
 

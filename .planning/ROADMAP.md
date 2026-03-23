@@ -112,7 +112,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 08-01-PLAN.md — Add BatchState::clear(), expose process_batch_now + clear_batch commands, replace marquee UI with status dashboard (pending list, merged output, Process Now, Clear Batch)
+- [x] 08-01-PLAN.md — Add BatchState::clear(), expose process_batch_now + clear_batch commands, replace marquee UI with status dashboard (pending list, merged output, Process Now, Clear Batch)
 
 ## Progress
 
@@ -128,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5. TOML Config | v2.0 | 1/1 | Complete | 2026-03-23 |
 | 6. Directory Watcher + Batch State + Badge | v2.0 | 1/1 | Complete | 2026-03-23 |
 | 7. Global Hotkey + Batch OCR Pipeline | v2.0 | 1/1 | Complete   | 2026-03-23 |
-| 8. Status Panel UI | v2.0 | 0/1 | Not started | - |
+| 8. Status Panel UI | v2.0 | 1/1 | Complete   | 2026-03-23 |
 
 ---
 *Roadmap updated: 2026-03-23 for v2.0 phase 7 plan*

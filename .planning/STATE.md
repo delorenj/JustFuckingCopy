@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ambient Tray
 status: unknown
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-23T07:33:52.515Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-23T07:41:30.563Z"
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 5
+  total_plans: 5
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Capture visible text from any screen region and get clean, deduplicated clipboard content with zero workflow interruption.
-**Current focus:** Phase 07 — global-hotkey-batch-ocr-pipeline
+**Current focus:** Phase 08 — status-panel-ui
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
+Phase: 08 (status-panel-ui) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: Not started
 | Phase 05 P01 | 3m 1s | 2 tasks | 3 files |
 | Phase 06 P01 | 2m 28s | 2 tasks | 3 files |
 | Phase 07 P01 | 92s | 2 tasks | 2 files |
+| Phase 08 P01 | 109s | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 06]: Non-existent watch_dir logs warning and returns Ok (no app crash on startup)
 - [Phase 07]: Global shortcut registered after app.build() using GlobalShortcutExt::on_shortcut (not in .setup()) to satisfy Tauri 2 plugin init ordering
 - [Phase 07]: Only successfully OCR'd files are archived; failed files remain in watch_dir for retry
+- [Phase 08]: Reuse existing process_batch async fn by wrapping it as process_batch_now Tauri command — zero duplication
+- [Phase 08]: Auto-refresh batch state on window focus so panel reflects screenshots dropped while panel was hidden
 
 ### Pending Todos
 
@@ -91,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T07:33:20.381Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-03-23T07:41:30.562Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None
