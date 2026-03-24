@@ -4,19 +4,17 @@ If you can see it, you can copy it.
 
 This is a greenfield Rust/Tauri prototype for "universal copy/paste" that works from pixels instead of application-specific clipboard APIs. The idea is simple:
 
-1. Capture what is visible on screen.
-2. Drag a marquee around the text you want.
-3. OCR the crop.
-4. Merge it into the running session, deduping overlap when the next crop repeats lines from the previous one.
-5. Push the merged result into the native clipboard.
+1. Drag a marquee around the text you want.
+2. OCR the crop.
+3. Merge it into the running session, deduping overlap when the next crop repeats lines from the previous one.
+4. Push the merged result into the native clipboard.
 
 That makes it useful for awkward contexts like remote shells, nested terminal multiplexers, tunneled sessions, and apps that do not cooperate with normal clipboard semantics.
 
 ## What This Prototype Does
 
 - Builds a desktop app with Tauri and a dependency-light static frontend.
-- Captures a full-screen screenshot from the local machine.
-- Lets you draw a marquee over that screenshot.
+- Screenshots are added to a batch
 - Runs OCR on the crop.
 - Appends the recognized text in selection order.
 - Detects repeated overlap between adjacent captures and trims duplicated lines before merging.
@@ -54,4 +52,3 @@ On macOS you will likely need to grant Screen Recording permission the first tim
 - Add an inline crop editor to fix OCR mistakes before committing.
 - Implement a Windows OCR backend.
 - Add a secondary "relay" mode for remote copy interception.
-
