@@ -59,16 +59,12 @@ jobs:
         include:
           - os: ubuntu-22.04
             label: linux-x86_64
-            rust-target: x86_64-unknown-linux-gnu
+            rust-targets: x86_64-unknown-linux-gnu
             args: ''
           - os: macos-14
-            label: macos-aarch64
-            rust-target: aarch64-apple-darwin
-            args: '--target aarch64-apple-darwin'
-          - os: macos-13
-            label: macos-x86_64
-            rust-target: x86_64-apple-darwin
-            args: '--target x86_64-apple-darwin'
+            label: macos-universal
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: '--target universal-apple-darwin'
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -77,13 +73,13 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust-target }}
+          targets: ${{ matrix.rust-targets }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
-          key: ${{ matrix.rust-target }}
+          key: ${{ matrix.label }}
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -91,11 +87,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
+            libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
             libgtk-3-dev \
-            libayatana-appindicator3-dev \
             libssl-dev \
             build-essential \
             file \
@@ -121,12 +116,19 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           mkdir -p dist
+          # DMG output (universal target places bundles under universal-apple-darwin/release/bundle)
           find src-tauri/target -type f -name "*.dmg" -exec cp {} dist/ \;
-          # Also zip the .app bundle since unsigned .dmg can be annoying
+          # Rename dmgs to include universal suffix
+          for f in dist/*.dmg; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f" .dmg)
+            mv "$f" "dist/${base}-universal.dmg"
+          done
+          # Zip the .app bundle too
           APP_PATH=$(find src-tauri/target -type d -name "*.app" | head -n 1)
           if [ -n "$APP_PATH" ]; then
             APP_NAME=$(basename "$APP_PATH" .app)
-            ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "dist/${APP_NAME}-${{ matrix.label }}.app.zip"
+            ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "dist/${APP_NAME}-universal.app.zip"
           fi
           ls -lh dist/
 
